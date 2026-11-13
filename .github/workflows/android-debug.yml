@@ -17,14 +17,33 @@ jobs:
       - name: Check out project
         uses: actions/checkout@v4
 
+      - name: Create temporary Android debug signing key
+        run: |
+          keytool -genkeypair -v \
+            -keystore "$RUNNER_TEMP/android-debug.keystore" \
+            -storepass android \
+            -alias androiddebugkey \
+            -keypass android \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -dname "CN=Android Debug,O=Android,C=US"
+          echo "GODOT_ANDROID_KEYSTORE_DEBUG_PATH=$RUNNER_TEMP/android-debug.keystore" >> "$GITHUB_ENV"
+          echo "GODOT_ANDROID_KEYSTORE_DEBUG_USER=androiddebugkey" >> "$GITHUB_ENV"
+          echo "GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD=android" >> "$GITHUB_ENV"
+
       - name: Import project and export APK
         run: |
           mkdir -p build/android
           docker run --rm \
+            -e GODOT_ANDROID_KEYSTORE_DEBUG_PATH \
+            -e GODOT_ANDROID_KEYSTORE_DEBUG_USER \
+            -e GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD \
             -v "${{ github.workspace }}:/workspace" \
+            -v "$RUNNER_TEMP/android-debug.keystore:/tmp/android-debug.keystore:ro" \
             -w /workspace \
             barichello/godot-ci:4.4.1 \
-            bash -lc 'godot --headless --path . --editor --quit && godot --headless --path . --export-debug "Android" build/android/SubwayBuilderMobileUnofficial-debug.apk'
+            bash -lc 'export GODOT_ANDROID_KEYSTORE_DEBUG_PATH=/tmp/android-debug.keystore && godot --headless --path . --editor --quit && godot --headless --path . --export-debug "Android" build/android/SubwayBuilderMobileUnofficial-debug.apk'
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
