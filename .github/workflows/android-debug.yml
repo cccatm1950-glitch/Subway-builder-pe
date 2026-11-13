@@ -32,18 +32,45 @@ jobs:
           echo "GODOT_ANDROID_KEYSTORE_DEBUG_USER=androiddebugkey" >> "$GITHUB_ENV"
           echo "GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD=android" >> "$GITHUB_ENV"
 
-      - name: Import project and export APK
+      - name: Diagnose Android export environment
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            barichello/godot-ci:4.4.1 \
+            bash -lc '
+              echo "=== Tool versions ==="
+              godot --version
+              java -version
+              echo "=== Android environment ==="
+              env | sort | grep -E "^(ANDROID|JAVA|GODOT)" || true
+              echo "=== Android SDK directories ==="
+              for d in "$ANDROID_HOME" "$ANDROID_SDK_ROOT" /opt/android-sdk /root/Android/Sdk /usr/lib/android-sdk; do
+                if [ -n "$d" ] && [ -d "$d" ]; then
+                  echo "--- $d"
+                  ls -la "$d" | head -40
+                  [ ! -d "$d/platforms" ] || ls -la "$d/platforms"
+                  [ ! -d "$d/build-tools" ] || ls -la "$d/build-tools"
+                fi
+              done
+              echo "=== Godot export templates ==="
+              ls -la /root/.local/share/godot/export_templates/ 2>&1 || true
+              echo "=== Godot config ==="
+              ls -la /root/.config/godot/ 2>&1 || true
+            '
+
+      - name: Import project and export APK with verbose diagnostics
         run: |
           mkdir -p build/android
           docker run --rm \
-            -e GODOT_ANDROID_KEYSTORE_DEBUG_PATH \
+            -e GODOT_ANDROID_KEYSTORE_DEBUG_PATH=/tmp/android-debug.keystore \
             -e GODOT_ANDROID_KEYSTORE_DEBUG_USER \
             -e GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD \
             -v "${{ github.workspace }}:/workspace" \
             -v "$RUNNER_TEMP/android-debug.keystore:/tmp/android-debug.keystore:ro" \
             -w /workspace \
             barichello/godot-ci:4.4.1 \
-            bash -lc 'export GODOT_ANDROID_KEYSTORE_DEBUG_PATH=/tmp/android-debug.keystore && godot --headless --path . --editor --quit && godot --headless --path . --export-debug "Android" build/android/SubwayBuilderMobileUnofficial-debug.apk'
+            bash -lc 'set -o pipefail; godot --headless --path . --editor --quit --verbose 2>&1 | tee /tmp/godot-import.log; godot --headless --path . --export-debug "Android" build/android/SubwayBuilderMobileUnofficial-debug.apk --verbose 2>&1 | tee /tmp/godot-export.log'
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
