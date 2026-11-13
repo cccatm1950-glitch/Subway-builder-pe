@@ -57,6 +57,12 @@ jobs:
               ls -la /root/.local/share/godot/export_templates/ 2>&1 || true
               echo "=== Godot config ==="
               ls -la /root/.config/godot/ 2>&1 || true
+              echo "=== Editor settings contents ==="
+              cat /root/.config/godot/editor_settings-4.4.tres 2>&1 || true
+              echo "=== Android SDK package inventory ==="
+              /usr/lib/android-sdk/cmdline-tools/latest/bin/sdkmanager --list 2>&1 | head -100 || true
+              echo "=== Export template files ==="
+              find /root/.local/share/godot/export_templates/4.4.1.stable -maxdepth 2 -type f -printf "%p %s bytes\\n" 2>&1 | head -80
             '
 
       - name: Import project and export APK with verbose diagnostics
