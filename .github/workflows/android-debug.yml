@@ -1,0 +1,35 @@
+name: Android debug APK
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-android:
+    name: Export Android debug APK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out project
+        uses: actions/checkout@v4
+
+      - name: Import project and export APK
+        run: |
+          mkdir -p build/android
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            barichello/godot-ci:4.4.1 \
+            bash -lc 'godot --headless --path . --editor --quit && godot --headless --path . --export-debug "Android" build/android/SubwayBuilderMobileUnofficial-debug.apk'
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Subway-Builder-Mobile-Unofficial-debug
+          path: build/android/SubwayBuilderMobileUnofficial-debug.apk
+          if-no-files-found: error
+          retention-days: 14
