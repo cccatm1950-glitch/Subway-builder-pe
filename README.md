@@ -18,7 +18,7 @@ Early foundation stage. The first milestone establishes a clean, runnable Godot 
 1. Install Godot 4.
 2. Clone or download this repository.
 3. In Godot, choose **Import** and select the `project.godot` file.
-4. Open the project and press **F6** to run the current scene, or **F6** after selecting the main scene.
+4. Press **F5** to run the project's main scene.
 
 ## Beginner-friendly workflow
 
