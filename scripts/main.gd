@@ -18,6 +18,9 @@ var build_mode := ""
 var stations: Array[Vector2] = []
 var track_segments: Array[Vector2] = []
 var pending_track_start := -1
+var mouse_pointer_down := false
+var mouse_pointer_start := Vector2.ZERO
+var mouse_pointer_dragged := false
 
 func _ready() -> void:
 	camera.enabled = true
@@ -37,9 +40,12 @@ func _input(event: InputEvent) -> void:
 		_handle_screen_drag(event)
 	elif event is InputEventMouseButton:
 		_handle_mouse_button(event)
-	elif event is InputEventMouseMotion and Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
-		_pan_camera(event.relative)
-		hud.set_input_status("MOUSE DRAG")
+	elif event is InputEventMouseMotion and (event.button_mask & MOUSE_BUTTON_MASK_LEFT) != 0:
+		if mouse_pointer_down:
+			if event.position.distance_to(mouse_pointer_start) > TAP_DRAG_THRESHOLD:
+				mouse_pointer_dragged = true
+			_pan_camera(event.relative)
+			hud.set_input_status("MOUSE DRAG")
 
 func _handle_screen_touch(event: InputEventScreenTouch) -> void:
 	if event.pressed:
@@ -95,14 +101,25 @@ func _handle_screen_drag(event: InputEventScreenDrag) -> void:
 		hud.set_input_status("PINCH ZOOM")
 
 func _handle_mouse_button(event: InputEventMouseButton) -> void:
-	if hud.is_ui_position(event.position):
-		return
 	if event.button_index == MOUSE_BUTTON_WHEEL_UP and event.pressed:
 		_zoom_in()
 	elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN and event.pressed:
 		_zoom_out()
-	elif event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
-		_handle_map_tap(event.position)
+	elif event.button_index == MOUSE_BUTTON_LEFT:
+		if event.pressed:
+			if hud.is_ui_position(event.position):
+				return
+			mouse_pointer_down = true
+			mouse_pointer_start = event.position
+			mouse_pointer_dragged = false
+			hud.set_input_status("POINTER DOWN")
+		else:
+			if mouse_pointer_down and not mouse_pointer_dragged and not hud.is_ui_position(event.position):
+				_handle_map_tap(event.position)
+				hud.set_input_status("POINTER TAP")
+			elif mouse_pointer_dragged:
+				hud.set_input_status("POINTER DRAG END")
+			mouse_pointer_down = false
 
 func _handle_map_tap(screen_position: Vector2) -> void:
 	if build_mode == "station":
