@@ -26,6 +26,10 @@ sed -i \
   "$RUNNER_TEMP/godot-smoke/export_presets.cfg"
 
 docker run --rm \
+  -e GODOT_ANDROID_KEYSTORE_DEBUG_PATH=/root/debug.keystore \
+  -e GODOT_ANDROID_KEYSTORE_DEBUG_USER=androiddebugkey \
+  -e GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD=android \
+  -v "$GODOT_ANDROID_KEYSTORE_DEBUG_PATH:/root/debug.keystore:ro" \
   -v "$RUNNER_TEMP/godot-smoke:/smoke" \
   -v "$GITHUB_WORKSPACE/build:/workspace/build" \
   -w /smoke \
