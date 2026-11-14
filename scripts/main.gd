@@ -77,8 +77,7 @@ func _handle_screen_touch(event: InputEventScreenTouch) -> void:
 		if curve_handle_dragging and curve_handle_touch_index == event.index:
 			curve_handle_dragging = false
 			curve_handle_touch_index = -1
-			curve_stage = 2
-			hud.set_mode(build_mode, "BEND SET  ·  TAP AN END STATION")
+			hud.set_mode(build_mode, "BEND SET  ·  DRAG AGAIN OR TAP AN END STATION")
 			queue_redraw()
 			return
 		if ignored_touches.has(event.index):
@@ -143,8 +142,7 @@ func _handle_mouse_button(event: InputEventMouseButton) -> void:
 			if curve_handle_dragging and curve_handle_touch_index == -2:
 				curve_handle_dragging = false
 				curve_handle_touch_index = -1
-				curve_stage = 2
-				hud.set_mode(build_mode, "BEND SET  ·  TAP AN END STATION")
+				hud.set_mode(build_mode, "BEND SET  ·  DRAG AGAIN OR TAP AN END STATION")
 				queue_redraw()
 				return
 			if mouse_pointer_down and not mouse_pointer_dragged and not hud.is_ui_position(event.position):
@@ -213,10 +211,14 @@ func _handle_curve_tap(screen_position: Vector2) -> void:
 		hud.set_mode(build_mode, "CURVE CONNECTED  ·  SELECT ANOTHER START")
 
 func _try_begin_curve_handle_drag(screen_position: Vector2, touch_index: int) -> bool:
+	# A physical touch can also arrive as an emulated mouse press. Never let
+	# that second event steal ownership from the original touch.
+	if curve_handle_dragging:
+		return true
 	if build_mode != "curve" or curve_stage != 1 or pending_curve_start < 0:
 		return false
 	var handle_screen: Vector2 = get_viewport().get_canvas_transform() * pending_curve_control
-	if handle_screen.distance_to(screen_position) > 36.0:
+	if handle_screen.distance_to(screen_position) > 48.0:
 		return false
 	curve_handle_dragging = true
 	curve_handle_touch_index = touch_index
@@ -233,6 +235,8 @@ func _make_curve_points(start_point: Vector2, control_point: Vector2, end_point:
 
 func _select_curve_mode() -> void:
 	build_mode = "" if build_mode == "curve" else "curve"
+	curve_handle_dragging = false
+	curve_handle_touch_index = -1
 	pending_track_start = -1
 	pending_curve_start = -1
 	curve_stage = 0
@@ -287,10 +291,13 @@ func _draw_curve_preview() -> void:
 	var start_point: Vector2 = stations[pending_curve_start]
 	var end_point := get_snapped_world_position(get_viewport_rect().size * 0.5)
 	var points := _make_curve_points(start_point, pending_curve_control, end_point)
-	draw_polyline(points, Color(0.42, 1.0, 0.92, 0.9), 4.0, true)
-	var handle_radius := 12.0 / camera.zoom.x
-	draw_circle(pending_curve_control, handle_radius, Color(0.55, 1.0, 0.94, 0.24))
-	draw_arc(pending_curve_control, handle_radius * 1.5, 0.0, TAU, 32, Color(0.72, 1.0, 0.97, 1.0), 2.5 / camera.zoom.x, true)
+	draw_polyline(points, Color(0.42, 1.0, 0.92, 0.9), 4.0 / camera.zoom.x, true)
+	# A persistent guide makes the draggable control point easy to identify.
+	draw_line(start_point, pending_curve_control, Color(0.72, 1.0, 0.97, 0.72), 2.0 / camera.zoom.x, true)
+	var handle_radius := 19.0 / camera.zoom.x
+	draw_circle(pending_curve_control, handle_radius, Color(0.05, 0.16, 0.17, 0.96))
+	draw_circle(pending_curve_control, 10.0 / camera.zoom.x, Color(0.55, 1.0, 0.94, 0.95))
+	draw_arc(pending_curve_control, 27.0 / camera.zoom.x, 0.0, TAU, 40, Color(0.72, 1.0, 0.97, 1.0), 3.0 / camera.zoom.x, true)
 
 func _draw_track_preview() -> void:
 	var viewport_size := get_viewport_rect().size
