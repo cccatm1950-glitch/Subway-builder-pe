@@ -17,7 +17,11 @@ var previous_pinch_distance := 0.0
 var build_mode := ""
 var stations: Array[Vector2] = []
 var track_segments: Array[Vector2] = []
+var curve_segments: Array[PackedVector2Array] = []
 var pending_track_start := -1
+var pending_curve_start := -1
+var pending_curve_control := Vector2.ZERO
+var curve_stage := 0
 var mouse_pointer_down := false
 var mouse_pointer_start := Vector2.ZERO
 var mouse_pointer_dragged := false
@@ -30,6 +34,7 @@ func _ready() -> void:
 	hud.zoom_out_requested.connect(_zoom_out)
 	hud.station_mode_requested.connect(_select_station_mode)
 	hud.track_mode_requested.connect(_select_track_mode)
+	hud.curve_mode_requested.connect(_select_curve_mode)
 	_update_coordinate_readout()
 	hud.set_input_status("INPUT READY")
 
@@ -122,7 +127,9 @@ func _handle_mouse_button(event: InputEventMouseButton) -> void:
 			mouse_pointer_down = false
 
 func _handle_map_tap(screen_position: Vector2) -> void:
-	if build_mode == "station":
+	if build_mode == "curve":
+		_handle_curve_tap(screen_position)
+	elif build_mode == "station":
 		var station_position := get_snapped_world_position(screen_position)
 		if not stations.has(station_position):
 			stations.append(station_position)
@@ -145,6 +152,51 @@ func _handle_map_tap(screen_position: Vector2) -> void:
 			queue_redraw()
 			hud.set_mode(build_mode, "TRACK CONNECTED  ·  SELECT ANOTHER START")
 
+func _handle_curve_tap(screen_position: Vector2) -> void:
+	if curve_stage == 0:
+		var station_index := _find_station_near_screen(screen_position)
+		if station_index == -1:
+			hud.set_mode(build_mode, "SELECT AN EXISTING START STATION")
+			return
+		pending_curve_start = station_index
+		curve_stage = 1
+		hud.set_mode(build_mode, "PAN THE MAP TO POSITION THE BEND, THEN TAP")
+	elif curve_stage == 1:
+		# The crosshair marks the bend point; the tap confirms its snapped map position.
+		pending_curve_control = get_snapped_world_position(get_viewport_rect().size * 0.5)
+		curve_stage = 2
+		hud.set_mode(build_mode, "BEND SET  ·  TAP AN END STATION")
+		queue_redraw()
+	else:
+		var end_index := _find_station_near_screen(screen_position)
+		if end_index == -1:
+			hud.set_mode(build_mode, "TAP AN EXISTING END STATION")
+			return
+		if end_index == pending_curve_start:
+			hud.set_mode(build_mode, "CHOOSE A DIFFERENT END STATION")
+			return
+		var points := PackedVector2Array()
+		var start_point: Vector2 = stations[pending_curve_start]
+		var end_point: Vector2 = stations[end_index]
+		for step in range(25):
+			var t := float(step) / 24.0
+			var one_minus_t := 1.0 - t
+			var point := one_minus_t * one_minus_t * start_point + 2.0 * one_minus_t * t * pending_curve_control + t * t * end_point
+			points.append(point)
+		curve_segments.append(points)
+		pending_curve_start = -1
+		curve_stage = 0
+		queue_redraw()
+		hud.set_mode(build_mode, "CURVE CONNECTED  ·  SELECT ANOTHER START")
+
+func _select_curve_mode() -> void:
+	build_mode = "" if build_mode == "curve" else "curve"
+	pending_track_start = -1
+	pending_curve_start = -1
+	curve_stage = 0
+	hud.set_mode(build_mode, "SELECT START STATION" if build_mode == "curve" else "DRAG TO MOVE  ·  PINCH TO ZOOM")
+	queue_redraw()
+
 func _find_station_near_screen(screen_position: Vector2) -> int:
 	var nearest_index := -1
 	var nearest_distance := STATION_PICK_RADIUS
@@ -160,25 +212,54 @@ func _find_station_near_screen(screen_position: Vector2) -> int:
 func _select_station_mode() -> void:
 	build_mode = "" if build_mode == "station" else "station"
 	pending_track_start = -1
+	pending_curve_start = -1
+	curve_stage = 0
 	hud.set_mode(build_mode, "TAP TO PLACE STATIONS  ·  DRAG TO MOVE MAP" if build_mode == "station" else "DRAG TO MOVE  ·  PINCH TO ZOOM")
 
 func _select_track_mode() -> void:
 	build_mode = "" if build_mode == "track" else "track"
 	pending_track_start = -1
+	pending_curve_start = -1
+	curve_stage = 0
 	hud.set_mode(build_mode, "TAP TWO DIFFERENT STATIONS TO CONNECT" if build_mode == "track" else "DRAG TO MOVE  ·  PINCH TO ZOOM")
 
 func _draw() -> void:
+	for curve in curve_segments:
+		if curve.size() > 1:
+			draw_polyline(curve, Color(0.24, 0.86, 0.78), 7.0, true)
 	for index in range(0, track_segments.size(), 2):
 		if index + 1 < track_segments.size():
 			draw_line(track_segments[index], track_segments[index + 1], Color(0.24, 0.86, 0.78), 7.0, true)
 	if build_mode == "track" and pending_track_start >= 0 and pending_track_start < stations.size():
 		_draw_track_preview()
+	if build_mode == "curve" and pending_curve_start >= 0 and pending_curve_start < stations.size():
+		_draw_curve_preview()
 	for index in range(stations.size()):
 		var station := stations[index]
 		draw_circle(station, 12.0, Color(0.88, 0.96, 1.0))
 		draw_arc(station, 16.0, 0.0, TAU, 32, Color(0.25, 0.88, 0.82), 2.0, true)
 		if build_mode == "track" and index == pending_track_start:
 			draw_arc(station, 23.0, 0.0, TAU, 32, Color(1.0, 1.0, 1.0), 2.0, true)
+
+func _draw_curve_preview() -> void:
+	var start_point: Vector2 = stations[pending_curve_start]
+	var points := PackedVector2Array()
+	var end_point := get_snapped_world_position(get_viewport_rect().size * 0.5)
+	var control_point := end_point if curve_stage < 2 else pending_curve_control
+	for step in range(25):
+		var t := float(step) / 24.0
+		var one_minus_t := 1.0 - t
+		points.append(one_minus_t * one_minus_t * start_point + 2.0 * one_minus_t * t * control_point + t * t * end_point)
+	if curve_stage >= 2:
+		# Keep the confirmed bend fixed while the player pans toward the end station.
+		points.clear()
+		for step in range(25):
+			var t := float(step) / 24.0
+			var one_minus_t := 1.0 - t
+			points.append(one_minus_t * one_minus_t * start_point + 2.0 * one_minus_t * t * pending_curve_control + t * t * end_point)
+	draw_polyline(points, Color(0.42, 1.0, 0.92, 0.9), 4.0, true)
+	draw_circle(control_point, 7.0, Color(0.55, 1.0, 0.94, 0.24))
+	draw_arc(control_point, 12.0, 0.0, TAU, 32, Color(0.72, 1.0, 0.97, 1.0), 2.0, true)
 
 func _draw_track_preview() -> void:
 	var viewport_size := get_viewport_rect().size
