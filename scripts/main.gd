@@ -25,6 +25,8 @@ var curve_stage := 0
 var mouse_pointer_down := false
 var mouse_pointer_start := Vector2.ZERO
 var mouse_pointer_dragged := false
+var curve_handle_dragging := false
+var curve_handle_touch_index := -1
 
 func _ready() -> void:
 	camera.enabled = true
@@ -46,6 +48,10 @@ func _input(event: InputEvent) -> void:
 	elif event is InputEventMouseButton:
 		_handle_mouse_button(event)
 	elif event is InputEventMouseMotion and (event.button_mask & MOUSE_BUTTON_MASK_LEFT) != 0:
+		if curve_handle_dragging and curve_handle_touch_index == -2:
+			pending_curve_control = screen_to_world(event.position)
+			queue_redraw()
+			return
 		if mouse_pointer_down:
 			if event.position.distance_to(mouse_pointer_start) > TAP_DRAG_THRESHOLD:
 				mouse_pointer_dragged = true
@@ -54,6 +60,8 @@ func _input(event: InputEvent) -> void:
 
 func _handle_screen_touch(event: InputEventScreenTouch) -> void:
 	if event.pressed:
+		if _try_begin_curve_handle_drag(event.position, event.index):
+			return
 		if hud.is_ui_position(event.position):
 			ignored_touches[event.index] = true
 			return
@@ -66,8 +74,14 @@ func _handle_screen_touch(event: InputEventScreenTouch) -> void:
 				touch_moved[touch_id] = true
 			previous_pinch_distance = _touch_distance()
 	else:
-		if ignored_touches.has(event.index):
-			ignored_touches.erase(event.index)
+		if curve_handle_dragging and curve_handle_touch_index == event.index:
+			curve_handle_dragging = false
+			curve_handle_touch_index = -1
+			curve_stage = 2
+			hud.set_mode(build_mode, "BEND SET  ·  TAP AN END STATION")
+			queue_redraw()
+			return
+		if ignored_touches.has(event.index):			ignored_touches.erase(event.index)
 			return
 		var was_last_touch := active_touches.size() == 1 and active_touches.has(event.index)
 		var start: Vector2 = touch_starts.get(event.index, event.position)
@@ -90,6 +104,10 @@ func _handle_screen_touch(event: InputEventScreenTouch) -> void:
 			touch_moved[remaining_id] = true
 
 func _handle_screen_drag(event: InputEventScreenDrag) -> void:
+	if curve_handle_dragging and curve_handle_touch_index == event.index:
+		pending_curve_control = screen_to_world(event.position)
+		queue_redraw()
+		return
 	if ignored_touches.has(event.index):
 		return
 	if not active_touches.has(event.index):
@@ -112,6 +130,8 @@ func _handle_mouse_button(event: InputEventMouseButton) -> void:
 		_zoom_out()
 	elif event.button_index == MOUSE_BUTTON_LEFT:
 		if event.pressed:
+			if _try_begin_curve_handle_drag(event.position, -2):
+				return
 			if hud.is_ui_position(event.position):
 				return
 			mouse_pointer_down = true
@@ -119,6 +139,13 @@ func _handle_mouse_button(event: InputEventMouseButton) -> void:
 			mouse_pointer_dragged = false
 			hud.set_input_status("POINTER DOWN")
 		else:
+			if curve_handle_dragging and curve_handle_touch_index == -2:
+				curve_handle_dragging = false
+				curve_handle_touch_index = -1
+				curve_stage = 2
+				hud.set_mode(build_mode, "BEND SET  ·  TAP AN END STATION")
+				queue_redraw()
+				return
 			if mouse_pointer_down and not mouse_pointer_dragged and not hud.is_ui_position(event.position):
 				_handle_map_tap(event.position)
 				hud.set_input_status("POINTER TAP")
@@ -160,12 +187,14 @@ func _handle_curve_tap(screen_position: Vector2) -> void:
 			return
 		pending_curve_start = station_index
 		curve_stage = 1
-		hud.set_mode(build_mode, "PAN THE MAP TO POSITION THE BEND, THEN TAP")
-	elif curve_stage == 1:
-		# The crosshair marks the bend point; the tap confirms its snapped map position.
-		pending_curve_control = get_snapped_world_position(get_viewport_rect().size * 0.5)
-		curve_stage = 2
-		hud.set_mode(build_mode, "BEND SET  ·  TAP AN END STATION")
+		var start_screen: Vector2 = get_viewport().get_canvas_transform() * stations[station_index]
+		var center := get_viewport_rect().size * 0.5
+		var direction := (center - start_screen).normalized()
+		if direction.length_squared() < 0.01:
+			direction = Vector2.RIGHT
+		var normal := Vector2(-direction.y, direction.x)
+		pending_curve_control = screen_to_world(start_screen + direction * 90.0 + normal * 55.0)
+		hud.set_mode(build_mode, "DRAG THE CURVE HANDLE TO SHAPE THE BEND")
 		queue_redraw()
 	else:
 		var end_index := _find_station_near_screen(screen_position)
@@ -175,19 +204,31 @@ func _handle_curve_tap(screen_position: Vector2) -> void:
 		if end_index == pending_curve_start:
 			hud.set_mode(build_mode, "CHOOSE A DIFFERENT END STATION")
 			return
-		var points := PackedVector2Array()
-		var start_point: Vector2 = stations[pending_curve_start]
-		var end_point: Vector2 = stations[end_index]
-		for step in range(25):
-			var t := float(step) / 24.0
-			var one_minus_t := 1.0 - t
-			var point := one_minus_t * one_minus_t * start_point + 2.0 * one_minus_t * t * pending_curve_control + t * t * end_point
-			points.append(point)
+		var points := _make_curve_points(stations[pending_curve_start], pending_curve_control, stations[end_index])
 		curve_segments.append(points)
 		pending_curve_start = -1
 		curve_stage = 0
 		queue_redraw()
 		hud.set_mode(build_mode, "CURVE CONNECTED  ·  SELECT ANOTHER START")
+
+func _try_begin_curve_handle_drag(screen_position: Vector2, touch_index: int) -> bool:
+	if build_mode != "curve" or curve_stage != 1 or pending_curve_start < 0:
+		return false
+	var handle_screen: Vector2 = get_viewport().get_canvas_transform() * pending_curve_control
+	if handle_screen.distance_to(screen_position) > 36.0:
+		return false
+	curve_handle_dragging = true
+	curve_handle_touch_index = touch_index
+	hud.set_input_status("SHAPING CURVE")
+	return true
+
+func _make_curve_points(start_point: Vector2, control_point: Vector2, end_point: Vector2) -> PackedVector2Array:
+	var points := PackedVector2Array()
+	for step in range(25):
+		var t := float(step) / 24.0
+		var one_minus_t := 1.0 - t
+		points.append(one_minus_t * one_minus_t * start_point + 2.0 * one_minus_t * t * control_point + t * t * end_point)
+	return points
 
 func _select_curve_mode() -> void:
 	build_mode = "" if build_mode == "curve" else "curve"
@@ -243,23 +284,12 @@ func _draw() -> void:
 
 func _draw_curve_preview() -> void:
 	var start_point: Vector2 = stations[pending_curve_start]
-	var points := PackedVector2Array()
 	var end_point := get_snapped_world_position(get_viewport_rect().size * 0.5)
-	var control_point := end_point if curve_stage < 2 else pending_curve_control
-	for step in range(25):
-		var t := float(step) / 24.0
-		var one_minus_t := 1.0 - t
-		points.append(one_minus_t * one_minus_t * start_point + 2.0 * one_minus_t * t * control_point + t * t * end_point)
-	if curve_stage >= 2:
-		# Keep the confirmed bend fixed while the player pans toward the end station.
-		points.clear()
-		for step in range(25):
-			var t := float(step) / 24.0
-			var one_minus_t := 1.0 - t
-			points.append(one_minus_t * one_minus_t * start_point + 2.0 * one_minus_t * t * pending_curve_control + t * t * end_point)
+	var points := _make_curve_points(start_point, pending_curve_control, end_point)
 	draw_polyline(points, Color(0.42, 1.0, 0.92, 0.9), 4.0, true)
-	draw_circle(control_point, 7.0, Color(0.55, 1.0, 0.94, 0.24))
-	draw_arc(control_point, 12.0, 0.0, TAU, 32, Color(0.72, 1.0, 0.97, 1.0), 2.0, true)
+	var handle_radius := 12.0 / camera.zoom.x
+	draw_circle(pending_curve_control, handle_radius, Color(0.55, 1.0, 0.94, 0.24))
+	draw_arc(pending_curve_control, handle_radius * 1.5, 0.0, TAU, 32, Color(0.72, 1.0, 0.97, 1.0), 2.5 / camera.zoom.x, true)
 
 func _draw_track_preview() -> void:
 	var viewport_size := get_viewport_rect().size
