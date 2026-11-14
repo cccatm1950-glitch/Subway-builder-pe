@@ -69,7 +69,7 @@ jobs:
         run: |
           mkdir -p build/android
           docker run --rm \
-            -e GODOT_ANDROID_KEYSTORE_DEBUG_PATH=/tmp/android-debug.keystore \
+            -e GODOT_ANDROID_KEYSTORE_DEBUG_PATH=/root/debug.keystore \
             -e GODOT_ANDROID_KEYSTORE_DEBUG_USER \
             -e GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD \
             -v "${{ github.workspace }}:/workspace" \
