@@ -10,6 +10,7 @@ const STATION_PICK_RADIUS := 64.0
 @onready var hud = $CanvasLayer/HUD
 
 var active_touches: Dictionary = {}
+var ignored_touches: Dictionary = {}
 var touch_starts: Dictionary = {}
 var gesture_invalid := false
 var previous_pinch_distance := 0.0
@@ -30,9 +31,12 @@ func _ready() -> void:
 	hud.track_mode_requested.connect(_select_track_mode)
 	_update_coordinate_readout()
 
-func _unhandled_input(event: InputEvent) -> void:
+func _input(event: InputEvent) -> void:
 	if event is InputEventScreenTouch:
 		if event.pressed:
+			if hud.is_ui_position(event.position):
+				ignored_touches[event.index] = true
+				return
 			if active_touches.is_empty():
 				gesture_invalid = false
 			active_touches[event.index] = event.position
@@ -41,6 +45,9 @@ func _unhandled_input(event: InputEvent) -> void:
 				gesture_invalid = true
 				previous_pinch_distance = _touch_distance()
 		else:
+			if ignored_touches.has(event.index):
+				ignored_touches.erase(event.index)
+				return
 			var is_final_finger := active_touches.size() == 1
 			var start_position: Vector2 = touch_starts.get(event.index, event.position)
 			var is_stationary_tap := is_final_finger and not gesture_invalid and event.position.distance_to(start_position) <= TAP_DRAG_THRESHOLD
@@ -52,6 +59,8 @@ func _unhandled_input(event: InputEvent) -> void:
 					_handle_map_tap(event.position)
 				gesture_invalid = false
 	elif event is InputEventScreenDrag:
+		if ignored_touches.has(event.index):
+			return
 		active_touches[event.index] = event.position
 		if touch_starts.has(event.index) and event.position.distance_to(touch_starts[event.index]) > TAP_DRAG_THRESHOLD:
 			gesture_invalid = true
@@ -61,6 +70,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			gesture_invalid = true
 			_update_pinch_zoom()
 	elif event is InputEventMouseButton:
+		if hud.is_ui_position(event.position):
+			return
 		if event.button_index == MOUSE_BUTTON_WHEEL_UP and event.pressed:
 			_zoom_in()
 		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN and event.pressed:
@@ -72,6 +83,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			elif not mouse_dragged and event.position.distance_to(mouse_start) <= TAP_DRAG_THRESHOLD:
 				_handle_map_tap(event.position)
 	elif event is InputEventMouseMotion and Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
+		if hud.is_ui_position(event.position):
+			return
 		if event.position.distance_to(mouse_start) > TAP_DRAG_THRESHOLD:
 			mouse_dragged = true
 		_pan_camera(event.relative)
