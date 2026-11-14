@@ -81,7 +81,8 @@ func _handle_screen_touch(event: InputEventScreenTouch) -> void:
 			hud.set_mode(build_mode, "BEND SET  ·  TAP AN END STATION")
 			queue_redraw()
 			return
-		if ignored_touches.has(event.index):			ignored_touches.erase(event.index)
+		if ignored_touches.has(event.index):
+			ignored_touches.erase(event.index)
 			return
 		var was_last_touch := active_touches.size() == 1 and active_touches.has(event.index)
 		var start: Vector2 = touch_starts.get(event.index, event.position)
