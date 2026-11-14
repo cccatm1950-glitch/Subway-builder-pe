@@ -171,6 +171,12 @@ func _draw() -> void:
 	for index in range(0, track_segments.size(), 2):
 		if index + 1 < track_segments.size():
 			draw_line(track_segments[index], track_segments[index + 1], Color(0.24, 0.86, 0.78), 7.0, true)
+	if build_mode == "track" and pending_track_start >= 0 and pending_track_start < stations.size():
+		var preview_end := get_snapped_world_position(get_viewport_rect().size * 0.5)
+		var preview_start: Vector2 = stations[pending_track_start]
+		draw_line(preview_start, preview_end, Color(0.35, 0.95, 0.88, 0.62), 5.0, true)
+		draw_circle(preview_end, 8.0, Color(0.35, 0.95, 0.88, 0.18))
+		draw_arc(preview_end, 12.0, 0.0, TAU, 32, Color(0.65, 1.0, 0.96, 0.9), 2.0, true)
 	for index in range(stations.size()):
 		var station := stations[index]
 		draw_circle(station, 12.0, Color(0.88, 0.96, 1.0))
@@ -206,6 +212,7 @@ func _zoom_out() -> void:
 func _set_zoom(value: float) -> void:
 	var zoom_level := clampf(value, MIN_ZOOM, MAX_ZOOM)
 	camera.zoom = Vector2.ONE * zoom_level
+	queue_redraw()
 
 func screen_to_world(screen_position: Vector2) -> Vector2:
 	return get_viewport().get_canvas_transform().affine_inverse() * screen_position
