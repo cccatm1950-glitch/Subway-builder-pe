@@ -70,13 +70,13 @@ jobs:
           mkdir -p build/android
           docker run --rm \
             -e GODOT_ANDROID_KEYSTORE_DEBUG_PATH=/root/debug.keystore \
-            -e GODOT_ANDROID_KEYSTORE_DEBUG_USER \
-            -e GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD \
+            -e GODOT_ANDROID_KEYSTORE_DEBUG_USER=androiddebugkey \
+            -e GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD=android \
             -v "${{ github.workspace }}:/workspace" \
             -v "$RUNNER_TEMP/android-debug.keystore:/root/debug.keystore:ro" \
             -w /workspace \
             barichello/godot-ci:4.4.1 \
-            bash -lc 'set -o pipefail; test -r /root/debug.keystore; godot --headless --path . --editor --quit --verbose 2>&1 | tee /tmp/godot-import.log; godot --headless --path . --export-debug "Android" build/android/SubwayBuilderMobileUnofficial-debug.apk --verbose 2>&1 | tee /tmp/godot-export.log'
+            bash -lc 'set -o pipefail; echo "=== Signing environment ==="; env | grep "^GODOT_ANDROID_KEYSTORE_DEBUG_" | sed "s/PASSWORD=.*/PASSWORD=[set]/"; keytool -list -keystore /root/debug.keystore -storepass android -alias androiddebugkey; test -r /root/debug.keystore; godot --headless --path . --editor --quit --verbose 2>&1 | tee /tmp/godot-import.log; godot --headless --path . --export-debug "Android" build/android/SubwayBuilderMobileUnofficial-debug.apk --verbose 2>&1 | tee /tmp/godot-export.log'
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
