@@ -66,8 +66,8 @@ func _handle_screen_touch(event: InputEventScreenTouch) -> void:
 			return
 		var was_last_touch := active_touches.size() == 1 and active_touches.has(event.index)
 		var start: Vector2 = touch_starts.get(event.index, event.position)
-		var moved := touch_moved.get(event.index, true)
-		var is_tap := was_last_touch and not moved and event.position.distance_to(start) <= TAP_DRAG_THRESHOLD
+		var moved: bool = bool(touch_moved.get(event.index, true))
+		var is_tap: bool = was_last_touch and not moved and event.position.distance_to(start) <= TAP_DRAG_THRESHOLD
 		active_touches.erase(event.index)
 		touch_starts.erase(event.index)
 		touch_moved.erase(event.index)
