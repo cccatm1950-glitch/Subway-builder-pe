@@ -61,4 +61,13 @@ docker run --rm \
   -v "$GITHUB_WORKSPACE/build:/workspace/build" \
   -w /smoke \
   barichello/godot-ci:4.4.1 \
-  bash -lc 'godot --headless --path . --editor --quit && godot --headless --path . --export-debug "Android" /workspace/build/android/SmokeTest.apk --verbose'
+  bash -lc '
+    set -e
+    SDKMANAGER=/usr/lib/android-sdk/cmdline-tools/latest/bin/sdkmanager
+    yes | "$SDKMANAGER" --sdk_root=/usr/lib/android-sdk --licenses
+    "$SDKMANAGER" --sdk_root=/usr/lib/android-sdk \
+      "platform-tools" "build-tools;34.0.0" "platforms;android-34" \
+      "cmdline-tools;latest" "cmake;3.10.2.4988404" "ndk;23.2.8568313"
+    godot --headless --path . --editor --quit
+    godot --headless --path . --export-debug "Android" /workspace/build/android/SmokeTest.apk --verbose
+  '
