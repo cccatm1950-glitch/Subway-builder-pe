@@ -10,6 +10,7 @@ var coordinate_label: Label
 var hint_label: Label
 var station_button: Button
 var track_button: Button
+var input_status_label: Label
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -22,6 +23,13 @@ func _ready() -> void:
 	title.add_theme_color_override("font_color", Color(0.91, 0.97, 1.0))
 	title.add_theme_font_size_override("font_size", 24)
 	add_child(title)
+
+	input_status_label = Label.new()
+	input_status_label.position = Vector2(24, 94)
+	input_status_label.size = Vector2(420, 22)
+	input_status_label.add_theme_color_override("font_color", Color(0.55, 0.68, 0.72))
+	input_status_label.add_theme_font_size_override("font_size", 11)
+	add_child(input_status_label)
 
 	coordinate_label = Label.new()
 	coordinate_label.position = Vector2(24, 68)
@@ -126,6 +134,10 @@ func is_ui_position(screen_position: Vector2) -> bool:
 		if control is Button and control.get_global_rect().has_point(screen_position):
 			return true
 	return false
+
+func set_input_status(message: String) -> void:
+	if is_instance_valid(input_status_label):
+		input_status_label.text = message
 
 func set_map_coordinates(position: Vector2) -> void:
 	if is_instance_valid(coordinate_label):
