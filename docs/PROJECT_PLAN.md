@@ -29,14 +29,15 @@ Build an Android-only, mobile-first subway construction game with a stable, unde
 - [x] Create a launch scene.
 - [x] Set a mobile portrait viewport as the initial layout baseline.
 - [x] Define Android as the only target platform.
-- [ ] Open and run the project in Godot Editor.
-- [ ] Configure Android export tools and create a test APK.
+- [x] Configure Android export tools and create a test APK; first debug APK verified on a physical Android phone.
+- [ ] Validate the new map scene in the Godot import/export pipeline and on the phone.
 
 ### 2. Mobile map and camera
-- Add a playable map surface.
-- Add touch pan and pinch-zoom controls.
-- Keep camera gestures separate from construction input.
-- Handle safe areas and different Android screen sizes.
+- [x] Add a procedural grid map surface.
+- [x] Add touch pan and pinch-zoom controls, plus on-screen zoom buttons.
+- [x] Keep camera gestures in the map controller, separate from construction input.
+- [x] Add a fixed screen-center crosshair and 32-unit coordinate snapping helper.
+- [ ] Validate gestures and safe-area layout on multiple Android screen sizes.
 
 ### 3. Railway basics
 - Add a station node.
