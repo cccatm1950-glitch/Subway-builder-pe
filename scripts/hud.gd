@@ -2,9 +2,14 @@ extends Control
 
 signal zoom_in_requested
 signal zoom_out_requested
+signal station_mode_requested
+signal track_mode_requested
+signal cancel_build_requested
 
 var coordinate_label: Label
 var hint_label: Label
+var station_button: Button
+var track_button: Button
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -40,6 +45,30 @@ func _ready() -> void:
 	hint_label.add_theme_font_size_override("font_size", 13)
 	add_child(hint_label)
 
+	station_button = _make_action_button("STATION")
+	station_button.anchor_left = 0.0
+	station_button.anchor_right = 0.0
+	station_button.anchor_top = 1.0
+	station_button.anchor_bottom = 1.0
+	station_button.offset_left = 20
+	station_button.offset_top = -112
+	station_button.offset_right = 142
+	station_button.offset_bottom = -52
+	station_button.pressed.connect(func(): station_mode_requested.emit())
+	add_child(station_button)
+
+	track_button = _make_action_button("TRACK")
+	track_button.anchor_left = 0.0
+	track_button.anchor_right = 0.0
+	track_button.anchor_top = 1.0
+	track_button.anchor_bottom = 1.0
+	track_button.offset_left = 152
+	track_button.offset_top = -112
+	track_button.offset_right = 274
+	track_button.offset_bottom = -52
+	track_button.pressed.connect(func(): track_mode_requested.emit())
+	add_child(track_button)
+
 	var zoom_in := _make_zoom_button("+")
 	zoom_in.anchor_left = 1.0
 	zoom_in.anchor_right = 1.0
@@ -64,6 +93,11 @@ func _ready() -> void:
 	zoom_out.pressed.connect(func(): zoom_out_requested.emit())
 	add_child(zoom_out)
 
+func _make_action_button(caption: String) -> Button:
+	var button := _make_zoom_button(caption)
+	button.add_theme_font_size_override("font_size", 14)
+	return button
+
 func _make_zoom_button(caption: String) -> Button:
 	var button := Button.new()
 	button.text = caption
@@ -87,6 +121,11 @@ func _button_style(fill: Color) -> StyleBoxFlat:
 func set_map_coordinates(position: Vector2) -> void:
 	if is_instance_valid(coordinate_label):
 		coordinate_label.text = "MAP  %d, %d" % [roundi(position.x), roundi(position.y)]
+
+func set_mode(mode: String, message: String) -> void:
+	hint_label.text = message
+	station_button.modulate = Color(1, 1, 1, 1) if mode == "station" else Color(0.72, 0.82, 0.86, 0.85)
+	track_button.modulate = Color(1, 1, 1, 1) if mode == "track" else Color(0.72, 0.82, 0.86, 0.85)
 
 func _draw() -> void:
 	var center := size * 0.5
