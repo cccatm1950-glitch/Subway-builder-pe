@@ -5,7 +5,7 @@ const MAX_ZOOM := 2.5
 const SNAP_SPACING := 32.0
 
 @onready var camera: Camera2D = $Camera2D
-@onready var hud: Control = $CanvasLayer/HUD
+@onready var hud = $CanvasLayer/HUD
 
 var active_touches: Dictionary = {}
 var previous_pinch_distance := 0.0
