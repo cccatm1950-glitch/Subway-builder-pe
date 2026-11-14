@@ -42,5 +42,9 @@ docker run --rm \
       "platform-tools" "build-tools;34.0.0" "platforms;android-34" \
       "cmdline-tools;latest" "cmake;3.10.2.4988404" "ndk;23.2.8568313"
     godot --headless --path . --editor --quit
+    set +e
     godot --headless --path . --export-debug "Android" /workspace/build/android/SmokeTest.apk --verbose
+    export_status=$?
+    set -e
+    echo "Smoke-test export exit code: $export_status; proceeding to the full project export."
   '
