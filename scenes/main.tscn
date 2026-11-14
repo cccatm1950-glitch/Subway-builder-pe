@@ -1,60 +1,27 @@
-[gd_scene format=3]
+[gd_scene load_steps=4 format=3]
 
-[node name="Main" type="Control"]
+[ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
+[ext_resource type="Script" path="res://scripts/map_grid.gd" id="2_grid"]
+[ext_resource type="Script" path="res://scripts/hud.gd" id="3_hud"]
+
+[node name="Main" type="Node2D"]
+script = ExtResource("1_main")
+
+[node name="MapGrid" type="Node2D" parent="."]
+script = ExtResource("2_grid")
+
+[node name="Camera2D" type="Camera2D" parent="."]
+position = Vector2(0, 0)
+zoom = Vector2(1, 1)
+enabled = true
+
+[node name="CanvasLayer" type="CanvasLayer" parent="."]
+
+[node name="HUD" type="Control" parent="CanvasLayer"]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-
-[node name="Background" type="ColorRect" parent="."]
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-color = Color(0.035, 0.055, 0.075, 1)
-
-[node name="CenterContainer" type="CenterContainer" parent="."]
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-
-[node name="WelcomePanel" type="VBoxContainer" parent="CenterContainer"]
-custom_minimum_size = Vector2(600, 260)
-layout_mode = 2
-theme_override_constants/separation = 18
-alignment = 1
-
-[node name="Title" type="Label" parent="CenterContainer/WelcomePanel"]
-layout_mode = 2
-theme_override_colors/font_color = Color(0.91, 0.97, 1, 1)
-theme_override_font_sizes/font_size = 34
-text = "SUBWAY BUILDER"
-horizontal_alignment = 1
-
-[node name="Edition" type="Label" parent="CenterContainer/WelcomePanel"]
-layout_mode = 2
-theme_override_colors/font_color = Color(0.25, 0.88, 0.82, 1)
-theme_override_font_sizes/font_size = 18
-text = "MOBILE UNOFFICIAL"
-horizontal_alignment = 1
-
-[node name="Status" type="Label" parent="CenterContainer/WelcomePanel"]
-layout_mode = 2
-theme_override_colors/font_color = Color(0.68, 0.76, 0.82, 1)
-theme_override_font_sizes/font_size = 16
-text = "Project foundation is ready."
-horizontal_alignment = 1
-
-[node name="NextStep" type="Label" parent="CenterContainer/WelcomePanel"]
-layout_mode = 2
-theme_override_colors/font_color = Color(0.68, 0.76, 0.82, 1)
-theme_override_font_sizes/font_size = 14
-text = "Next: build the map and camera controls."
-horizontal_alignment = 1
+script = ExtResource("3_hud")
