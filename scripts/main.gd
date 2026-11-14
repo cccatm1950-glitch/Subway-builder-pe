@@ -172,11 +172,7 @@ func _draw() -> void:
 		if index + 1 < track_segments.size():
 			draw_line(track_segments[index], track_segments[index + 1], Color(0.24, 0.86, 0.78), 7.0, true)
 	if build_mode == "track" and pending_track_start >= 0 and pending_track_start < stations.size():
-		var preview_end := get_snapped_world_position(get_viewport_rect().size * 0.5)
-		var preview_start: Vector2 = stations[pending_track_start]
-		draw_line(preview_start, preview_end, Color(0.35, 0.95, 0.88, 0.62), 5.0, true)
-		draw_circle(preview_end, 8.0, Color(0.35, 0.95, 0.88, 0.18))
-		draw_arc(preview_end, 12.0, 0.0, TAU, 32, Color(0.65, 1.0, 0.96, 0.9), 2.0, true)
+		_draw_track_preview()
 	for index in range(stations.size()):
 		var station := stations[index]
 		draw_circle(station, 12.0, Color(0.88, 0.96, 1.0))
@@ -184,8 +180,56 @@ func _draw() -> void:
 		if build_mode == "track" and index == pending_track_start:
 			draw_arc(station, 23.0, 0.0, TAU, 32, Color(1.0, 1.0, 1.0), 2.0, true)
 
+func _draw_track_preview() -> void:
+	var viewport_size := get_viewport_rect().size
+	var preview_end := get_snapped_world_position(viewport_size * 0.5)
+	var preview_start: Vector2 = stations[pending_track_start]
+	var canvas_transform := get_viewport().get_canvas_transform()
+	var inverse_transform := canvas_transform.affine_inverse()
+	var start_screen := canvas_transform * preview_start
+	var end_screen := canvas_transform * preview_end
+	var clipped := _clip_preview_segment(start_screen, end_screen, Rect2(Vector2.ZERO, viewport_size))
+	if clipped.size() == 2:
+		var clipped_start: Vector2 = clipped[0]
+		var clipped_end: Vector2 = clipped[1]
+		var segment_length := clipped_start.distance_to(clipped_end)
+		var direction := (clipped_end - clipped_start).normalized()
+		var dash_start := 0.0
+		while dash_start < segment_length:
+			var dash_end := minf(dash_start + 10.0, segment_length)
+			var a := inverse_transform * (clipped_start + direction * dash_start)
+			var b := inverse_transform * (clipped_start + direction * dash_end)
+			draw_line(a, b, Color(0.42, 1.0, 0.92, 0.92), 4.0, true)
+			dash_start += 18.0
+	# The target remains fixed to the snapped world point beneath the screen crosshair.
+	draw_circle(preview_end, 9.0, Color(0.35, 0.95, 0.88, 0.16))
+	draw_arc(preview_end, 13.0, 0.0, TAU, 32, Color(0.72, 1.0, 0.97, 1.0), 2.5, true)
+
+func _clip_preview_segment(a: Vector2, b: Vector2, rect: Rect2) -> Array[Vector2]:
+	var delta := b - a
+	var p_values := [-delta.x, delta.x, -delta.y, delta.y]
+	var q_values := [a.x - rect.position.x, rect.end.x - a.x, a.y - rect.position.y, rect.end.y - a.y]
+	var t_min := 0.0
+	var t_max := 1.0
+	for index in range(4):
+		var p: float = p_values[index]
+		var q: float = q_values[index]
+		if is_zero_approx(p):
+			if q < 0.0:
+				return []
+		else:
+			var ratio := q / p
+			if p < 0.0:
+				t_min = maxf(t_min, ratio)
+			else:
+				t_max = minf(t_max, ratio)
+			if t_min > t_max:
+				return []
+	return [a + delta * t_min, a + delta * t_max]
+
 func _pan_camera(screen_delta: Vector2) -> void:
 	camera.position -= screen_delta / camera.zoom.x
+	queue_redraw()
 	_update_coordinate_readout()
 
 func _update_pinch_zoom() -> void:
