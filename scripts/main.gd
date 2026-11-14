@@ -3,19 +3,17 @@ extends Node2D
 const MIN_ZOOM := 0.45
 const MAX_ZOOM := 2.5
 const SNAP_SPACING := 32.0
-const TAP_DRAG_THRESHOLD := 14.0
+const TAP_DRAG_THRESHOLD := 16.0
 const STATION_PICK_RADIUS := 64.0
 
 @onready var camera: Camera2D = $Camera2D
 @onready var hud = $CanvasLayer/HUD
 
 var active_touches: Dictionary = {}
-var ignored_touches: Dictionary = {}
 var touch_starts: Dictionary = {}
-var gesture_invalid := false
+var touch_moved: Dictionary = {}
+var ignored_touches: Dictionary = {}
 var previous_pinch_distance := 0.0
-var mouse_start := Vector2.ZERO
-var mouse_dragged := false
 var build_mode := ""
 var stations: Array[Vector2] = []
 var track_segments: Array[Vector2] = []
@@ -30,64 +28,81 @@ func _ready() -> void:
 	hud.station_mode_requested.connect(_select_station_mode)
 	hud.track_mode_requested.connect(_select_track_mode)
 	_update_coordinate_readout()
+	hud.set_input_status("INPUT READY")
 
 func _input(event: InputEvent) -> void:
 	if event is InputEventScreenTouch:
-		if event.pressed:
-			if hud.is_ui_position(event.position):
-				ignored_touches[event.index] = true
-				return
-			if active_touches.is_empty():
-				gesture_invalid = false
-			active_touches[event.index] = event.position
-			touch_starts[event.index] = event.position
-			if active_touches.size() > 1:
-				gesture_invalid = true
-				previous_pinch_distance = _touch_distance()
-		else:
-			if ignored_touches.has(event.index):
-				ignored_touches.erase(event.index)
-				return
-			var is_final_finger := active_touches.size() == 1
-			var start_position: Vector2 = touch_starts.get(event.index, event.position)
-			var is_stationary_tap := is_final_finger and not gesture_invalid and event.position.distance_to(start_position) <= TAP_DRAG_THRESHOLD
-			active_touches.erase(event.index)
-			touch_starts.erase(event.index)
-			if active_touches.is_empty():
-				previous_pinch_distance = 0.0
-				if is_stationary_tap:
-					_handle_map_tap(event.position)
-				gesture_invalid = false
+		_handle_screen_touch(event)
 	elif event is InputEventScreenDrag:
-		if ignored_touches.has(event.index):
+		_handle_screen_drag(event)
+	elif event is InputEventMouseButton:
+		_handle_mouse_button(event)
+	elif event is InputEventMouseMotion and Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
+		_pan_camera(event.relative)
+		hud.set_input_status("MOUSE DRAG")
+
+func _handle_screen_touch(event: InputEventScreenTouch) -> void:
+	if event.pressed:
+		if hud.is_ui_position(event.position):
+			ignored_touches[event.index] = true
 			return
 		active_touches[event.index] = event.position
-		if touch_starts.has(event.index) and event.position.distance_to(touch_starts[event.index]) > TAP_DRAG_THRESHOLD:
-			gesture_invalid = true
-		if active_touches.size() == 1:
-			_pan_camera(event.relative)
-		elif active_touches.size() >= 2:
-			gesture_invalid = true
-			_update_pinch_zoom()
-	elif event is InputEventMouseButton:
-		if hud.is_ui_position(event.position):
+		touch_starts[event.index] = event.position
+		touch_moved[event.index] = false
+		hud.set_input_status("TOUCH %d DOWN" % active_touches.size())
+		if active_touches.size() >= 2:
+			for touch_id in active_touches:
+				touch_moved[touch_id] = true
+			previous_pinch_distance = _touch_distance()
+	else:
+		if ignored_touches.has(event.index):
+			ignored_touches.erase(event.index)
 			return
-		if event.button_index == MOUSE_BUTTON_WHEEL_UP and event.pressed:
-			_zoom_in()
-		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN and event.pressed:
-			_zoom_out()
-		elif event.button_index == MOUSE_BUTTON_LEFT:
-			if event.pressed:
-				mouse_start = event.position
-				mouse_dragged = false
-			elif not mouse_dragged and event.position.distance_to(mouse_start) <= TAP_DRAG_THRESHOLD:
+		var was_last_touch := active_touches.size() == 1 and active_touches.has(event.index)
+		var start: Vector2 = touch_starts.get(event.index, event.position)
+		var moved := touch_moved.get(event.index, true)
+		var is_tap := was_last_touch and not moved and event.position.distance_to(start) <= TAP_DRAG_THRESHOLD
+		active_touches.erase(event.index)
+		touch_starts.erase(event.index)
+		touch_moved.erase(event.index)
+		if active_touches.size() < 2:
+			previous_pinch_distance = 0.0
+		if active_touches.is_empty():
+			if is_tap:
 				_handle_map_tap(event.position)
-	elif event is InputEventMouseMotion and Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
-		if hud.is_ui_position(event.position):
-			return
-		if event.position.distance_to(mouse_start) > TAP_DRAG_THRESHOLD:
-			mouse_dragged = true
+				hud.set_input_status("MAP TAP")
+			else:
+				hud.set_input_status("GESTURE END")
+		elif active_touches.size() == 1:
+			var remaining_id = active_touches.keys()[0]
+			touch_starts[remaining_id] = active_touches[remaining_id]
+			touch_moved[remaining_id] = true
+
+func _handle_screen_drag(event: InputEventScreenDrag) -> void:
+	if ignored_touches.has(event.index):
+		return
+	if not active_touches.has(event.index):
+		return
+	active_touches[event.index] = event.position
+	var start: Vector2 = touch_starts.get(event.index, event.position)
+	if event.position.distance_to(start) > TAP_DRAG_THRESHOLD:
+		touch_moved[event.index] = true
+	if active_touches.size() == 1:
 		_pan_camera(event.relative)
+		hud.set_input_status("MAP DRAG")
+	elif active_touches.size() >= 2:
+		_update_pinch_zoom()
+		hud.set_input_status("PINCH ZOOM")
+
+func _handle_mouse_button(event: InputEventMouseButton) -> void:
+	if hud.is_ui_position(event.position):
+		return
+	if event.button_index == MOUSE_BUTTON_WHEEL_UP and event.pressed:
+		_zoom_in()
+	elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN and event.pressed:
+		_zoom_out()
+	elif event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
+		_handle_map_tap(event.position)
 
 func _handle_map_tap(screen_position: Vector2) -> void:
 	if build_mode == "station":
