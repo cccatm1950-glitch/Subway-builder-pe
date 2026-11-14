@@ -118,6 +118,15 @@ func _button_style(fill: Color) -> StyleBoxFlat:
 	style.corner_radius_bottom_right = 30
 	return style
 
+func is_ui_position(screen_position: Vector2) -> bool:
+	for control in [station_button, track_button]:
+		if is_instance_valid(control) and control.get_global_rect().has_point(screen_position):
+			return true
+	for control in get_children():
+		if control is Button and control.get_global_rect().has_point(screen_position):
+			return true
+	return false
+
 func set_map_coordinates(position: Vector2) -> void:
 	if is_instance_valid(coordinate_label):
 		coordinate_label.text = "MAP  %d, %d" % [roundi(position.x), roundi(position.y)]
