@@ -73,10 +73,10 @@ jobs:
             -e GODOT_ANDROID_KEYSTORE_DEBUG_USER \
             -e GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD \
             -v "${{ github.workspace }}:/workspace" \
-            -v "$RUNNER_TEMP/android-debug.keystore:/tmp/android-debug.keystore:ro" \
+            -v "$RUNNER_TEMP/android-debug.keystore:/root/debug.keystore:ro" \
             -w /workspace \
             barichello/godot-ci:4.4.1 \
-            bash -lc 'set -o pipefail; godot --headless --path . --editor --quit --verbose 2>&1 | tee /tmp/godot-import.log; godot --headless --path . --export-debug "Android" build/android/SubwayBuilderMobileUnofficial-debug.apk --verbose 2>&1 | tee /tmp/godot-export.log'
+            bash -lc 'set -o pipefail; test -r /root/debug.keystore; godot --headless --path . --editor --quit --verbose 2>&1 | tee /tmp/godot-import.log; godot --headless --path . --export-debug "Android" build/android/SubwayBuilderMobileUnofficial-debug.apk --verbose 2>&1 | tee /tmp/godot-export.log'
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
