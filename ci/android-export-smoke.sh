@@ -18,43 +18,12 @@ cat > "$RUNNER_TEMP/godot-smoke/scenes/main.tscn" <<'EOF'
 [node name="Main" type="Node2D"]
 EOF
 
-cat > "$RUNNER_TEMP/godot-smoke/export_presets.cfg" <<'EOF'
-[preset.0]
-name="Android"
-platform="Android"
-runnable=true
-export_filter="all_resources"
-include_filter=""
-exclude_filter=""
-export_path="/workspace/build/android/SmokeTest.apk"
-patches=PackedStringArray()
-[preset.0.options]
-custom_template/debug=""
-custom_template/release=""
-gradle_build/use_gradle_build=false
-architectures/armeabi-v7a=false
-architectures/arm64-v8a=true
-architectures/x86=false
-architectures/x86_64=false
-version/code=1
-version/name="1.0"
-package/unique_name="com.example.godotexportsmoke"
-package/name="Godot Export Smoke Test"
-package/signed=false
-package/app_category=2
-package/retain_data_on_uninstall=false
-package/exclude_from_recents=false
-package/show_in_android_tv=false
-package/show_in_app_library=true
-package/show_as_launcher_app=false
-screen/immersive_mode=false
-screen/support_small=true
-screen/support_normal=true
-screen/support_large=true
-screen/support_xlarge=true
-permissions/custom_permissions=PackedStringArray()
-permissions/internet=false
-EOF
+cp "$GITHUB_WORKSPACE/export_presets.cfg" "$RUNNER_TEMP/godot-smoke/export_presets.cfg"
+sed -i \
+  -e 's#export_path="build/android/SubwayBuilderMobileUnofficial-debug.apk"#export_path="/workspace/build/android/SmokeTest.apk"#' \
+  -e 's#package/unique_name="com.subwaybuilder.mobileunofficial"#package/unique_name="com.example.godotexportsmoke"#' \
+  -e 's#package/name="Subway Builder Mobile Unofficial"#package/name="Godot Export Smoke Test"#' \
+  "$RUNNER_TEMP/godot-smoke/export_presets.cfg"
 
 docker run --rm \
   -v "$RUNNER_TEMP/godot-smoke:/smoke" \
