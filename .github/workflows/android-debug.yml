@@ -66,7 +66,7 @@ jobs:
             '
 
       - name: Run isolated Android export smoke test
-        run: bash ci/android-export-smoke.sh
+        run: bash -x ci/android-export-smoke.sh
 
       - name: Import project and export APK with verbose diagnostics
         run: |
