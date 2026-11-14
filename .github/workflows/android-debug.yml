@@ -65,6 +65,9 @@ jobs:
               find /root/.local/share/godot/export_templates/4.4.1.stable -maxdepth 2 -type f -printf "%p %s bytes\\n" 2>&1 | head -80
             '
 
+      - name: Run isolated Android export smoke test
+        run: bash ci/android-export-smoke.sh
+
       - name: Import project and export APK with verbose diagnostics
         run: |
           mkdir -p build/android
