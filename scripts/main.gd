@@ -21,6 +21,7 @@ var track_segments: Array[Vector2] = []
 # Topology records keep station connectivity and future parallel-lane metadata
 # separate from the legacy endpoint array used by current drawing code.
 var track_edges: Array[Dictionary] = []
+var junction_transition_paths: Array[PackedVector2Array] = []
 var next_track_edge_id := 1
 var curve_segments: Array[Dictionary] = []
 var pending_track_start := -1
@@ -328,14 +329,23 @@ func _make_curve_points(start_point: Vector2, control_point: Vector2, end_point:
 	return points
 
 func _add_track_edge(start_station: int, end_station: int, start_point: Vector2, end_point: Vector2, kind: String, parallel_group: int, lane_index: int, lane_count: int, spacing: float) -> void:
-	track_segments.append(start_point)
-	track_segments.append(end_point)
+	var draw_start := start_point
+	var draw_end := end_point
+	if kind == "single":
+		var merge_data := _build_parallel_merge_transition(start_station, end_station, start_point, end_point)
+		if not merge_data.is_empty():
+			draw_start = merge_data["draw_start"]
+			draw_end = merge_data["draw_end"]
+			for path in merge_data["paths"]:
+				junction_transition_paths.append(path)
+	track_segments.append(draw_start)
+	track_segments.append(draw_end)
 	track_edges.append({
 		"id": next_track_edge_id,
 		"start_station": start_station,
 		"end_station": end_station,
-		"start_point": start_point,
-		"end_point": end_point,
+		"start_point": draw_start,
+		"end_point": draw_end,
 		"kind": kind,
 		"parallel_group": parallel_group,
 		"lane_index": lane_index,
@@ -343,6 +353,67 @@ func _add_track_edge(start_station: int, end_station: int, start_point: Vector2,
 		"centerline_spacing": spacing
 	})
 	next_track_edge_id += 1
+
+func _build_parallel_merge_transition(start_station: int, end_station: int, start_point: Vector2, end_point: Vector2) -> Dictionary:
+	if start_station < 0 or end_station < 0 or start_station >= stations.size() or end_station >= stations.size():
+		return {}
+	var merge_station := -1
+	var outward_direction := Vector2.ZERO
+	var toward_end := true
+	if _get_parallel_groups_at_station(start_station).size() > 0:
+		merge_station = start_station
+		outward_direction = (end_point - start_point).normalized()
+	elif _get_parallel_groups_at_station(end_station).size() > 0:
+		merge_station = end_station
+		outward_direction = (start_point - end_point).normalized()
+		toward_end = false
+	if merge_station == -1 or outward_direction == Vector2.ZERO:
+		return {}
+
+	var groups := _get_parallel_groups_at_station(merge_station)
+	var selected_group := int(groups[0])
+	var lane_endpoints: Array[Vector2] = []
+	for edge in track_edges:
+		if int(edge.get("parallel_group", -1)) != selected_group:
+			continue
+		if int(edge.get("start_station", -1)) == merge_station:
+			lane_endpoints.append(edge.get("start_point", stations[merge_station]))
+		elif int(edge.get("end_station", -1)) == merge_station:
+			lane_endpoints.append(edge.get("end_point", stations[merge_station]))
+	if lane_endpoints.size() < 2:
+		return {}
+
+	var original_merge_point := stations[merge_station]
+	var single_length := start_point.distance_to(end_point)
+	var merge_length := minf(PARALLEL_CENTERLINE_SPACING * 3.0, single_length * 0.45)
+	if merge_length < PARALLEL_CENTERLINE_SPACING * 0.75:
+		return {}
+	var merge_point := original_merge_point + outward_direction * merge_length
+	var paths: Array[PackedVector2Array] = []
+	for lane_point in lane_endpoints:
+		var path := PackedVector2Array()
+		var first_control := lane_point + outward_direction * (merge_length * 0.42)
+		var second_control := merge_point - outward_direction * (merge_length * 0.28)
+		for step in range(21):
+			var t := float(step) / 20.0
+			var u := 1.0 - t
+			var point := u * u * u * lane_point + 3.0 * u * u * t * first_control + 3.0 * u * t * t * second_control + t * t * t * merge_point
+			path.append(point)
+		paths.append(path)
+	if toward_end:
+		return {"draw_start": merge_point, "draw_end": end_point, "paths": paths}
+	return {"draw_start": start_point, "draw_end": merge_point, "paths": paths}
+
+func _get_parallel_groups_at_station(station_index: int) -> Array[int]:
+	var groups: Array[int] = []
+	for edge in track_edges:
+		if int(edge.get("parallel_group", -1)) < 0:
+			continue
+		if int(edge.get("start_station", -1)) == station_index or int(edge.get("end_station", -1)) == station_index:
+			var group_id := int(edge.get("parallel_group", -1))
+			if not groups.has(group_id):
+				groups.append(group_id)
+	return groups
 
 func _add_parallel_track_pair(start_station: int, end_station: int) -> void:
 	var start_point: Vector2 = stations[start_station]
@@ -466,6 +537,9 @@ func _draw() -> void:
 			draw_polyline(curve_points, Color(0.24, 0.86, 0.78), 7.0, true)
 		if build_mode == "curve":
 			_draw_completed_curve_handle(curve, index == editing_curve_index)
+	for path in junction_transition_paths:
+		if path.size() > 1:
+			draw_polyline(path, Color(0.24, 0.86, 0.78), 7.0, true)
 	for index in range(0, track_segments.size(), 2):
 		if index + 1 < track_segments.size():
 			draw_line(track_segments[index], track_segments[index + 1], Color(0.24, 0.86, 0.78), 7.0, true)
