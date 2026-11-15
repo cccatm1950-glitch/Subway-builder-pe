@@ -289,25 +289,19 @@ func _offset_parallel_curve(centerline: PackedVector2Array, half_spacing: float)
 
 	for index in range(centerline.size()):
 		var offset_normal: Vector2
-		var scale := 1.0
 		if index == 0:
 			offset_normal = segment_normals[0]
 		elif index == centerline.size() - 1:
 			offset_normal = segment_normals[segment_normals.size() - 1]
 		else:
-			var previous_normal := segment_normals[index - 1]
-			var next_normal := segment_normals[index]
-			var normal_sum := previous_normal + next_normal
+			var normal_sum := segment_normals[index - 1] + segment_normals[index]
 			if normal_sum.length_squared() < 0.0001:
 				return []
 			offset_normal = normal_sum.normalized()
-			# Miter compensation keeps the perpendicular lane spacing stable
-			# through bends. A bounded miter avoids spikes at very tight turns.
-			var denominator := absf(offset_normal.dot(next_normal))
-			if denominator < 0.5:
-				return []
-			scale = minf(1.0 / denominator, 1.5)
-		var offset := offset_normal * half_spacing * scale
+		# Keep the two lane centerlines exactly one full spacing apart at
+		# every sampled point. The centerline is densely sampled, so averaging
+		# adjacent normals avoids the exaggerated miter spread at tight bends.
+		var offset := offset_normal * half_spacing
 		first.append(centerline[index] + offset)
 		second.append(centerline[index] - offset)
 	return [first, second]
