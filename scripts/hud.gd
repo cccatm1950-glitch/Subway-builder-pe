@@ -4,6 +4,7 @@ signal zoom_in_requested
 signal zoom_out_requested
 signal station_mode_requested
 signal track_mode_requested
+signal parallel_mode_requested
 signal curve_mode_requested
 signal cancel_build_requested
 
@@ -11,6 +12,7 @@ var coordinate_label: Label
 var hint_label: Label
 var station_button: Button
 var track_button: Button
+var parallel_button: Button
 var curve_button: Button
 var input_status_label: Label
 
@@ -72,21 +74,33 @@ func _ready() -> void:
 	track_button.anchor_right = 0.0
 	track_button.anchor_top = 1.0
 	track_button.anchor_bottom = 1.0
-	track_button.offset_left = 152
+	track_button.offset_left = 12
 	track_button.offset_top = -112
-	track_button.offset_right = 274
+	track_button.offset_right = 112
 	track_button.offset_bottom = -52
 	track_button.pressed.connect(func(): track_mode_requested.emit())
 	add_child(track_button)
+
+	parallel_button = _make_action_button("PARALLEL")
+	parallel_button.anchor_left = 0.0
+	parallel_button.anchor_right = 0.0
+	parallel_button.anchor_top = 1.0
+	parallel_button.anchor_bottom = 1.0
+	parallel_button.offset_left = 120
+	parallel_button.offset_top = -112
+	parallel_button.offset_right = 244
+	parallel_button.offset_bottom = -52
+	parallel_button.pressed.connect(func(): parallel_mode_requested.emit())
+	add_child(parallel_button)
 
 	curve_button = _make_action_button("CURVE")
 	curve_button.anchor_left = 0.0
 	curve_button.anchor_right = 0.0
 	curve_button.anchor_top = 1.0
 	curve_button.anchor_bottom = 1.0
-	curve_button.offset_left = 284
+	curve_button.offset_left = 252
 	curve_button.offset_top = -112
-	curve_button.offset_right = 406
+	curve_button.offset_right = 352
 	curve_button.offset_bottom = -52
 	curve_button.pressed.connect(func(): curve_mode_requested.emit())
 	add_child(curve_button)
@@ -141,7 +155,7 @@ func _button_style(fill: Color) -> StyleBoxFlat:
 	return style
 
 func is_ui_position(screen_position: Vector2) -> bool:
-	for control in [station_button, track_button, curve_button]:
+	for control in [station_button, track_button, parallel_button, curve_button]:
 		if is_instance_valid(control) and control.get_global_rect().has_point(screen_position):
 			return true
 	for control in get_children():
@@ -161,6 +175,7 @@ func set_mode(mode: String, message: String) -> void:
 	hint_label.text = message
 	station_button.modulate = Color(1, 1, 1, 1) if mode == "station" else Color(0.72, 0.82, 0.86, 0.85)
 	track_button.modulate = Color(1, 1, 1, 1) if mode == "track" else Color(0.72, 0.82, 0.86, 0.85)
+	parallel_button.modulate = Color(1, 1, 1, 1) if mode == "parallel" else Color(0.72, 0.82, 0.86, 0.85)
 	curve_button.modulate = Color(1, 1, 1, 1) if mode == "curve" else Color(0.72, 0.82, 0.86, 0.85)
 
 func _draw() -> void:
