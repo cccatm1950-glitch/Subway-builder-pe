@@ -266,6 +266,9 @@ func _handle_parallel_curve_tap(screen_position: Vector2) -> void:
 	var group_id := next_track_edge_id
 	for lane in range(2):
 		var path: PackedVector2Array = pair[lane]
+		# Join each offset curve endpoint back to the shared station marker.
+		junction_transition_paths.append(PackedVector2Array([curve_start, path[0]]))
+		junction_transition_paths.append(PackedVector2Array([curve_end, path[path.size() - 1]]))
 		track_edges.append({"id": next_track_edge_id, "start_station": pending_curve_start, "end_station": end_index, "start_point": path[0], "end_point": path[path.size() - 1], "kind": "parallel_curve", "parallel_group": group_id, "lane_index": lane, "lane_count": 2, "centerline_spacing": PARALLEL_CENTERLINE_SPACING})
 		next_track_edge_id += 1
 	pending_curve_start = -1
@@ -536,8 +539,18 @@ func _add_parallel_track_pair(start_station: int, end_station: int) -> void:
 	var normal := Vector2(-direction.y, direction.x)
 	var half_spacing := PARALLEL_CENTERLINE_SPACING * 0.5
 	var group_id := next_track_edge_id
-	_add_track_edge(start_station, end_station, start_point + normal * half_spacing, end_point + normal * half_spacing, "parallel", group_id, 0, 2, PARALLEL_CENTERLINE_SPACING)
-	_add_track_edge(start_station, end_station, start_point - normal * half_spacing, end_point - normal * half_spacing, "parallel", group_id, 1, 2, PARALLEL_CENTERLINE_SPACING)
+	var lane_a_start := start_point + normal * half_spacing
+	var lane_a_end := end_point + normal * half_spacing
+	var lane_b_start := start_point - normal * half_spacing
+	var lane_b_end := end_point - normal * half_spacing
+	# Each lane terminates at its own offset point, while short station
+	# connectors make both approaches visibly meet the shared station node.
+	junction_transition_paths.append(PackedVector2Array([start_point, lane_a_start]))
+	junction_transition_paths.append(PackedVector2Array([start_point, lane_b_start]))
+	junction_transition_paths.append(PackedVector2Array([end_point, lane_a_end]))
+	junction_transition_paths.append(PackedVector2Array([end_point, lane_b_end]))
+	_add_track_edge(start_station, end_station, lane_a_start, lane_a_end, "parallel", group_id, 0, 2, PARALLEL_CENTERLINE_SPACING)
+	_add_track_edge(start_station, end_station, lane_b_start, lane_b_end, "parallel", group_id, 1, 2, PARALLEL_CENTERLINE_SPACING)
 
 func _get_station_track_degree(station_index: int) -> int:
 	var degree := 0
