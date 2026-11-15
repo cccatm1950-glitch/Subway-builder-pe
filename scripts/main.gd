@@ -266,11 +266,81 @@ func _constrain_curve_control(start_point: Vector2, raw_control: Vector2, end_po
 
 func _make_curve_points(start_point: Vector2, control_point: Vector2, end_point: Vector2) -> PackedVector2Array:
 	var points := PackedVector2Array()
-	for step in range(25):
-		var t := float(step) / 24.0
-		var one_minus_t := 1.0 - t
-		points.append(one_minus_t * one_minus_t * start_point + 2.0 * one_minus_t * t * control_point + t * t * end_point)
+	var chord := end_point - start_point
+	var chord_length := chord.length()
+	var chord_direction := chord.normalized() if chord_length > 0.001 else Vector2.RIGHT
+	var start_track_tangent := _find_connected_track_tangent(start_point, chord_direction)
+	var end_track_tangent := _find_connected_track_tangent(end_point, chord_direction)
+	if start_track_tangent == Vector2.ZERO and end_track_tangent == Vector2.ZERO:
+		for step in range(25):
+			var t := float(step) / 24.0
+			var one_minus_t := 1.0 - t
+			points.append(one_minus_t * one_minus_t * start_point + 2.0 * one_minus_t * t * control_point + t * t * end_point)
+		return points
+
+	# Preserve tangent continuity where a curve joins an existing straight track.
+	# The middle pair of control points remains tied to the user's draggable handle.
+	var start_tangent := start_track_tangent
+	if start_tangent == Vector2.ZERO:
+		start_tangent = (control_point - start_point).normalized()
+	var end_tangent := end_track_tangent
+	if end_tangent == Vector2.ZERO:
+		end_tangent = (end_point - control_point).normalized()
+	if start_tangent == Vector2.ZERO:
+		start_tangent = chord_direction
+	if end_tangent == Vector2.ZERO:
+		end_tangent = chord_direction
+	var tangent_length := maxf(chord_length * 0.22, 8.0)
+	var p0 := start_point
+	var p1 := start_point + start_tangent * tangent_length
+	var p2 := control_point
+	var p3 := control_point
+	var p4 := end_point - end_tangent * tangent_length
+	var p5 := end_point
+	for step in range(41):
+		var t := float(step) / 40.0
+		var a := p0.lerp(p1, t)
+		var b := p1.lerp(p2, t)
+		var c := p2.lerp(p3, t)
+		var d := p3.lerp(p4, t)
+		var e := p4.lerp(p5, t)
+		var f := a.lerp(b, t)
+		var g := b.lerp(c, t)
+		var h := c.lerp(d, t)
+		var i := d.lerp(e, t)
+		var j := f.lerp(g, t)
+		var k := g.lerp(h, t)
+		var l := h.lerp(i, t)
+		var m := j.lerp(k, t)
+		var n := k.lerp(l, t)
+		points.append(m.lerp(n, t))
 	return points
+
+func _find_connected_track_tangent(station_point: Vector2, preferred_direction: Vector2) -> Vector2:
+	var best_tangent := Vector2.ZERO
+	var best_alignment := -1.0
+	for index in range(0, track_segments.size(), 2):
+		if index + 1 >= track_segments.size():
+			continue
+		var first: Vector2 = track_segments[index]
+		var second: Vector2 = track_segments[index + 1]
+		var neighbor := Vector2.ZERO
+		if first == station_point:
+			neighbor = second
+		elif second == station_point:
+			neighbor = first
+		else:
+			continue
+		var tangent := (neighbor - station_point).normalized()
+		if tangent == Vector2.ZERO:
+			continue
+		if tangent.dot(preferred_direction) < 0.0:
+			tangent = -tangent
+		var alignment := absf(tangent.dot(preferred_direction))
+		if alignment > best_alignment:
+			best_alignment = alignment
+			best_tangent = tangent
+	return best_tangent
 
 func _select_curve_mode() -> void:
 	build_mode = "" if build_mode == "curve" else "curve"
