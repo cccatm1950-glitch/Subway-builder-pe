@@ -309,8 +309,7 @@ func _make_curve_points(start_point: Vector2, control_point: Vector2, end_point:
 		var t := float(step) / 20.0
 		var u := 1.0 - t
 		var first_point := u * u * u * a0 + 3.0 * u * u * t * a1 + 3.0 * u * t * t * a2 + t * t * t * a3
-		if step == 0:
-			points.append(first_point)
+		points.append(first_point)
 	for step in range(1, 21):
 		var t := float(step) / 20.0
 		var u := 1.0 - t
