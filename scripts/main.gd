@@ -269,57 +269,53 @@ func _make_curve_points(start_point: Vector2, control_point: Vector2, end_point:
 	var chord := end_point - start_point
 	var chord_length := chord.length()
 	var chord_direction := chord.normalized() if chord_length > 0.001 else Vector2.RIGHT
-	var start_direction := (control_point - start_point).normalized()
-	var end_direction := (end_point - control_point).normalized()
-	if start_direction == Vector2.ZERO:
-		start_direction = chord_direction
-	if end_direction == Vector2.ZERO:
-		end_direction = chord_direction
-	var start_track_tangent := _find_connected_track_tangent(start_point, start_direction, false)
-	var end_track_tangent := _find_connected_track_tangent(end_point, end_direction, true)
-	if start_track_tangent == Vector2.ZERO and end_track_tangent == Vector2.ZERO:
-		for step in range(25):
-			var t := float(step) / 24.0
-			var one_minus_t := 1.0 - t
-			points.append(one_minus_t * one_minus_t * start_point + 2.0 * one_minus_t * t * control_point + t * t * end_point)
+	var start_to_handle := control_point - start_point
+	var handle_to_end := end_point - control_point
+	var first_length := start_to_handle.length()
+	var second_length := handle_to_end.length()
+	if first_length < 0.001 or second_length < 0.001:
 		return points
 
-	# Preserve tangent continuity where a curve joins an existing straight track.
-	# The middle pair of control points remains tied to the user's draggable handle.
-	var start_tangent := start_track_tangent
-	if start_tangent == Vector2.ZERO:
-		start_tangent = (control_point - start_point).normalized()
-	var end_tangent := end_track_tangent
-	if end_tangent == Vector2.ZERO:
-		end_tangent = (end_point - control_point).normalized()
+	var start_track_tangent := _find_connected_track_tangent(start_point, start_to_handle.normalized(), false)
+	var end_track_tangent := _find_connected_track_tangent(end_point, handle_to_end.normalized(), true)
+	var start_tangent := start_track_tangent if start_track_tangent != Vector2.ZERO else start_to_handle.normalized()
+	var end_tangent := end_track_tangent if end_track_tangent != Vector2.ZERO else handle_to_end.normalized()
 	if start_tangent == Vector2.ZERO:
 		start_tangent = chord_direction
 	if end_tangent == Vector2.ZERO:
 		end_tangent = chord_direction
-	var tangent_length := maxf(chord_length * 0.22, 8.0)
-	var p0 := start_point
-	var p1 := start_point + start_tangent * tangent_length
-	var p2 := control_point
-	var p3 := control_point
-	var p4 := end_point - end_tangent * tangent_length
-	var p5 := end_point
-	for step in range(41):
-		var t := float(step) / 40.0
-		var a := p0.lerp(p1, t)
-		var b := p1.lerp(p2, t)
-		var c := p2.lerp(p3, t)
-		var d := p3.lerp(p4, t)
-		var e := p4.lerp(p5, t)
-		var f := a.lerp(b, t)
-		var g := b.lerp(c, t)
-		var h := c.lerp(d, t)
-		var i := d.lerp(e, t)
-		var j := f.lerp(g, t)
-		var k := g.lerp(h, t)
-		var l := h.lerp(i, t)
-		var m := j.lerp(k, t)
-		var n := k.lerp(l, t)
-		points.append(m.lerp(n, t))
+
+	# Build two cubic sections that meet exactly at the draggable bend handle.
+	# Their shared tangent follows the overall route direction, preventing the
+	# repeated-control-point quintic from flattening and folding near junctions.
+	var center_tangent := chord_direction
+	if center_tangent.dot(start_to_handle.normalized()) < -0.25:
+		center_tangent = (start_to_handle.normalized() + handle_to_end.normalized()).normalized()
+	if center_tangent == Vector2.ZERO:
+		center_tangent = chord_direction
+	var start_handle_length := minf(first_length * 0.38, maxf(chord_length * 0.22, 8.0))
+	var end_handle_length := minf(second_length * 0.38, maxf(chord_length * 0.22, 8.0))
+	var center_handle_length := minf(minf(first_length, second_length) * 0.32, maxf(chord_length * 0.18, 6.0))
+
+	var a0 := start_point
+	var a1 := start_point + start_tangent * start_handle_length
+	var a2 := control_point - center_tangent * center_handle_length
+	var a3 := control_point
+	var b0 := control_point
+	var b1 := control_point + center_tangent * center_handle_length
+	var b2 := end_point - end_tangent * end_handle_length
+	var b3 := end_point
+	for step in range(21):
+		var t := float(step) / 20.0
+		var u := 1.0 - t
+		var first_point := u * u * u * a0 + 3.0 * u * u * t * a1 + 3.0 * u * t * t * a2 + t * t * t * a3
+		if step == 0:
+			points.append(first_point)
+	for step in range(1, 21):
+		var t := float(step) / 20.0
+		var u := 1.0 - t
+		var second_point := u * u * u * b0 + 3.0 * u * u * t * b1 + 3.0 * u * t * t * b2 + t * t * t * b3
+		points.append(second_point)
 	return points
 
 func _find_connected_track_tangent(station_point: Vector2, preferred_direction: Vector2, at_curve_end: bool) -> Vector2:
