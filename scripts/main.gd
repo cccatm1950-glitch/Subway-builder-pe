@@ -78,6 +78,7 @@ func _handle_screen_touch(event: InputEventScreenTouch) -> void:
 		if curve_handle_dragging and curve_handle_touch_index == event.index:
 			curve_handle_dragging = false
 			curve_handle_touch_index = -1
+			editing_curve_index = -1
 			hud.set_mode(build_mode, "BEND SET  ·  DRAG AGAIN OR TAP AN END STATION")
 			queue_redraw()
 			return
@@ -143,6 +144,7 @@ func _handle_mouse_button(event: InputEventMouseButton) -> void:
 			if curve_handle_dragging and curve_handle_touch_index == -2:
 				curve_handle_dragging = false
 				curve_handle_touch_index = -1
+				editing_curve_index = -1
 				hud.set_mode(build_mode, "BEND SET  ·  DRAG AGAIN OR TAP AN END STATION")
 				queue_redraw()
 				return
