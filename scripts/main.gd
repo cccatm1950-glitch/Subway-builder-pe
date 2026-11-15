@@ -702,26 +702,34 @@ func _draw_track_preview() -> void:
 	var viewport_size := get_viewport_rect().size
 	var preview_end := get_snapped_world_position(viewport_size * 0.5)
 	var preview_start: Vector2 = stations[pending_track_start]
-	var canvas_transform := get_viewport().get_canvas_transform()
-	var inverse_transform := canvas_transform.affine_inverse()
-	var start_screen := canvas_transform * preview_start
-	var end_screen := canvas_transform * preview_end
-	var clipped := _clip_preview_segment(start_screen, end_screen, Rect2(Vector2.ZERO, viewport_size))
-	if clipped.size() == 2:
-		var clipped_start: Vector2 = clipped[0]
-		var clipped_end: Vector2 = clipped[1]
-		var segment_length := clipped_start.distance_to(clipped_end)
-		var direction := (clipped_end - clipped_start).normalized()
-		var dash_start := 0.0
-		while dash_start < segment_length:
-			var dash_end := minf(dash_start + 10.0, segment_length)
-			var a := inverse_transform * (clipped_start + direction * dash_start)
-			var b := inverse_transform * (clipped_start + direction * dash_end)
-			draw_line(a, b, Color(0.42, 1.0, 0.92, 0.92), 4.0, true)
-			dash_start += 18.0
-	# The target remains fixed to the snapped world point beneath the screen crosshair.
+	if build_mode == "parallel":
+		var direction := (preview_end - preview_start).normalized()
+		if direction != Vector2.ZERO:
+			var normal := Vector2(-direction.y, direction.x) * (PARALLEL_CENTERLINE_SPACING * 0.5)
+			_draw_dashed_preview_line(preview_start + normal, preview_end + normal, viewport_size)
+			_draw_dashed_preview_line(preview_start - normal, preview_end - normal, viewport_size)
+	else:
+		_draw_dashed_preview_line(preview_start, preview_end, viewport_size)
 	draw_circle(preview_end, 9.0, Color(0.35, 0.95, 0.88, 0.16))
 	draw_arc(preview_end, 13.0, 0.0, TAU, 32, Color(0.72, 1.0, 0.97, 1.0), 2.5, true)
+
+func _draw_dashed_preview_line(world_start: Vector2, world_end: Vector2, viewport_size: Vector2) -> void:
+	var canvas_transform := get_viewport().get_canvas_transform()
+	var inverse_transform := canvas_transform.affine_inverse()
+	var clipped := _clip_preview_segment(canvas_transform * world_start, canvas_transform * world_end, Rect2(Vector2.ZERO, viewport_size))
+	if clipped.size() != 2:
+		return
+	var clipped_start: Vector2 = clipped[0]
+	var clipped_end: Vector2 = clipped[1]
+	var segment_length := clipped_start.distance_to(clipped_end)
+	var direction := (clipped_end - clipped_start).normalized()
+	var dash_start := 0.0
+	while dash_start < segment_length:
+		var dash_end := minf(dash_start + 10.0, segment_length)
+		var a := inverse_transform * (clipped_start + direction * dash_start)
+		var b := inverse_transform * (clipped_start + direction * dash_end)
+		draw_line(a, b, Color(0.42, 1.0, 0.92, 0.92), 4.0, true)
+		dash_start += 18.0
 
 func _clip_preview_segment(a: Vector2, b: Vector2, rect: Rect2) -> Array[Vector2]:
 	var delta := b - a
