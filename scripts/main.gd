@@ -45,6 +45,7 @@ func _ready() -> void:
 	hud.station_mode_requested.connect(_select_station_mode)
 	hud.track_mode_requested.connect(_select_track_mode)
 	hud.parallel_mode_requested.connect(_select_parallel_mode)
+	hud.parallel_curve_mode_requested.connect(_select_parallel_curve_mode)
 	hud.curve_mode_requested.connect(_select_curve_mode)
 	_update_coordinate_readout()
 	hud.set_input_status("INPUT READY")
@@ -166,7 +167,7 @@ func _handle_mouse_button(event: InputEventMouseButton) -> void:
 func _handle_map_tap(screen_position: Vector2) -> void:
 	if build_mode == "curve":
 		_handle_curve_tap(screen_position)
-	elif build_mode == "parallel":
+	elif build_mode == "parallel_curve":
 		_handle_parallel_curve_tap(screen_position)
 	elif build_mode == "station":
 		var station_position := get_snapped_world_position(screen_position)
@@ -174,7 +175,7 @@ func _handle_map_tap(screen_position: Vector2) -> void:
 			stations.append(station_position)
 			queue_redraw()
 		_update_coordinate_readout()
-	elif build_mode == "track":
+	elif build_mode == "track" or build_mode == "parallel":
 		var station_index := _find_station_near_screen(screen_position)
 		if station_index == -1:
 			hud.set_mode(build_mode, "TAP DIRECTLY ON A STATION")
@@ -187,7 +188,10 @@ func _handle_map_tap(screen_position: Vector2) -> void:
 		else:
 			var start_station := pending_track_start
 			var end_station := station_index
-			_add_track_edge(start_station, end_station, stations[start_station], stations[end_station], "single", -1, 0, 1, 0.0)
+			if build_mode == "parallel":
+				_add_parallel_track_pair(start_station, end_station)
+			else:
+				_add_track_edge(start_station, end_station, stations[start_station], stations[end_station], "single", -1, 0, 1, 0.0)
 			pending_track_start = -1
 			queue_redraw()
 			hud.set_mode(build_mode, "TRACKS CONNECTED  ·  SELECT ANOTHER START" if build_mode == "parallel" else "TRACK CONNECTED  ·  SELECT ANOTHER START")
@@ -311,7 +315,7 @@ func _offset_parallel_curve(centerline: PackedVector2Array, half_spacing: float)
 func _try_begin_curve_handle_drag(screen_position: Vector2, touch_index: int) -> bool:
 	if curve_handle_dragging:
 		return true
-	if build_mode != "curve" and build_mode != "parallel":
+	if build_mode != "curve" and build_mode != "parallel_curve":
 		return false
 	var transform := get_viewport().get_canvas_transform()
 	if curve_stage == 1 and pending_curve_start >= 0:
@@ -618,7 +622,14 @@ func _select_parallel_mode() -> void:
 	pending_track_start = -1
 	pending_curve_start = -1
 	curve_stage = 0
-	hud.set_mode(build_mode, "TAP START  ·  DRAG SHARED CURVE HANDLE  ·  TAP END" if build_mode == "parallel" else "DRAG TO MOVE  ·  PINCH TO ZOOM")
+	hud.set_mode(build_mode, "TAP TWO STATIONS TO PLACE STRAIGHT PARALLEL TRACKS" if build_mode == "parallel" else "DRAG TO MOVE  ·  PINCH TO ZOOM")
+
+func _select_parallel_curve_mode() -> void:
+	build_mode = "" if build_mode == "parallel_curve" else "parallel_curve"
+	pending_track_start = -1
+	pending_curve_start = -1
+	curve_stage = 0
+	hud.set_mode(build_mode, "TAP START  ·  DRAG SHARED CURVE HANDLE  ·  TAP END" if build_mode == "parallel_curve" else "DRAG TO MOVE  ·  PINCH TO ZOOM")
 
 func _draw() -> void:
 	for index in range(curve_segments.size()):
@@ -638,7 +649,7 @@ func _draw() -> void:
 		_draw_track_preview()
 	if build_mode == "curve" and pending_curve_start >= 0 and pending_curve_start < stations.size():
 		_draw_curve_preview()
-	if build_mode == "parallel" and pending_curve_start >= 0 and pending_curve_start < stations.size():
+	if build_mode == "parallel_curve" and pending_curve_start >= 0 and pending_curve_start < stations.size():
 		_draw_parallel_curve_preview()
 	for segment in parallel_curve_segments:
 		for path in segment["paths"]:
