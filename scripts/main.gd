@@ -17,6 +17,10 @@ var previous_pinch_distance := 0.0
 var build_mode := ""
 var stations: Array[Vector2] = []
 var track_segments: Array[Vector2] = []
+# Topology records keep station connectivity and future parallel-lane metadata
+# separate from the legacy endpoint array used by current drawing code.
+var track_edges: Array[Dictionary] = []
+var next_track_edge_id := 1
 var curve_segments: Array[Dictionary] = []
 var pending_track_start := -1
 var pending_curve_start := -1
@@ -175,8 +179,21 @@ func _handle_map_tap(screen_position: Vector2) -> void:
 		elif station_index == pending_track_start:
 			hud.set_mode(build_mode, "SAME STATION  ·  CHOOSE A DIFFERENT ONE")
 		else:
-			track_segments.append(stations[pending_track_start])
-			track_segments.append(stations[station_index])
+			var start_station := pending_track_start
+			var end_station := station_index
+			track_segments.append(stations[start_station])
+			track_segments.append(stations[end_station])
+			track_edges.append({
+				"id": next_track_edge_id,
+				"start_station": start_station,
+				"end_station": end_station,
+				"kind": "single",
+				"parallel_group": -1,
+				"lane_index": 0,
+				"lane_count": 1,
+				"centerline_spacing": 0.0
+			})
+			next_track_edge_id += 1
 			pending_track_start = -1
 			queue_redraw()
 			hud.set_mode(build_mode, "TRACK CONNECTED  ·  SELECT ANOTHER START")
@@ -316,6 +333,39 @@ func _make_curve_points(start_point: Vector2, control_point: Vector2, end_point:
 		var second_point := u * u * u * b0 + 3.0 * u * u * t * b1 + 3.0 * u * t * t * b2 + t * t * t * b3
 		points.append(second_point)
 	return points
+
+func _get_station_track_degree(station_index: int) -> int:
+	var degree := 0
+	for edge in track_edges:
+		if int(edge.get("start_station", -1)) == station_index or int(edge.get("end_station", -1)) == station_index:
+			degree += 1
+	return degree
+
+func _get_junction_type(station_index: int) -> String:
+	var degree := _get_station_track_degree(station_index)
+	if degree <= 1:
+		return "terminal"
+	if degree == 2:
+		return "through"
+	return "branch"
+
+func _get_station_track_directions(station_index: int) -> Array[Vector2]:
+	var directions: Array[Vector2] = []
+	if station_index < 0 or station_index >= stations.size():
+		return directions
+	for edge in track_edges:
+		var start_index := int(edge.get("start_station", -1))
+		var end_index := int(edge.get("end_station", -1))
+		var neighbor_index := -1
+		if start_index == station_index:
+			neighbor_index = end_index
+		elif end_index == station_index:
+			neighbor_index = start_index
+		if neighbor_index >= 0 and neighbor_index < stations.size():
+			var direction := (stations[neighbor_index] - stations[station_index]).normalized()
+			if direction != Vector2.ZERO:
+				directions.append(direction)
+	return directions
 
 func _find_connected_track_tangent(station_point: Vector2, preferred_direction: Vector2, at_curve_end: bool) -> Vector2:
 	var best_tangent := Vector2.ZERO
