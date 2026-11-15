@@ -274,19 +274,38 @@ func _offset_parallel_curve(centerline: PackedVector2Array, half_spacing: float)
 	var second := PackedVector2Array()
 	if centerline.size() < 2:
 		return [first, second]
-	for index in range(centerline.size()):
-		var tangent: Vector2
-		if index == 0:
-			tangent = (centerline[1] - centerline[0]).normalized()
-		elif index == centerline.size() - 1:
-			tangent = (centerline[index] - centerline[index - 1]).normalized()
-		else:
-			tangent = (centerline[index + 1] - centerline[index - 1]).normalized()
-		if tangent == Vector2.ZERO:
+
+	var segment_normals: Array[Vector2] = []
+	for index in range(centerline.size() - 1):
+		var segment := centerline[index + 1] - centerline[index]
+		if segment.length_squared() < 0.0001:
 			return []
-		var normal := Vector2(-tangent.y, tangent.x)
-		first.append(centerline[index] + normal * half_spacing)
-		second.append(centerline[index] - normal * half_spacing)
+		var tangent := segment.normalized()
+		segment_normals.append(Vector2(-tangent.y, tangent.x))
+
+	for index in range(centerline.size()):
+		var offset_normal: Vector2
+		var scale := 1.0
+		if index == 0:
+			offset_normal = segment_normals[0]
+		elif index == centerline.size() - 1:
+			offset_normal = segment_normals[segment_normals.size() - 1]
+		else:
+			var previous_normal := segment_normals[index - 1]
+			var next_normal := segment_normals[index]
+			var normal_sum := previous_normal + next_normal
+			if normal_sum.length_squared() < 0.0001:
+				return []
+			offset_normal = normal_sum.normalized()
+			# Miter compensation keeps the perpendicular lane spacing stable
+			# through bends. A bounded miter avoids spikes at very tight turns.
+			var denominator := absf(offset_normal.dot(next_normal))
+			if denominator < 0.5:
+				return []
+			scale = minf(1.0 / denominator, 1.5)
+		var offset := offset_normal * half_spacing * scale
+		first.append(centerline[index] + offset)
+		second.append(centerline[index] - offset)
 	return [first, second]
 
 func _try_begin_curve_handle_drag(screen_position: Vector2, touch_index: int) -> bool:
