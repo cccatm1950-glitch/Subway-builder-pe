@@ -24,6 +24,7 @@ var track_edges: Array[Dictionary] = []
 var junction_transition_paths: Array[PackedVector2Array] = []
 var next_track_edge_id := 1
 var curve_segments: Array[Dictionary] = []
+var parallel_curve_segments: Array[Dictionary] = []
 var pending_track_start := -1
 var pending_curve_start := -1
 var pending_curve_control := Vector2.ZERO
@@ -165,13 +166,15 @@ func _handle_mouse_button(event: InputEventMouseButton) -> void:
 func _handle_map_tap(screen_position: Vector2) -> void:
 	if build_mode == "curve":
 		_handle_curve_tap(screen_position)
+	elif build_mode == "parallel":
+		_handle_parallel_curve_tap(screen_position)
 	elif build_mode == "station":
 		var station_position := get_snapped_world_position(screen_position)
 		if not stations.has(station_position):
 			stations.append(station_position)
 			queue_redraw()
 		_update_coordinate_readout()
-	elif build_mode == "track" or build_mode == "parallel":
+	elif build_mode == "track":
 		var station_index := _find_station_near_screen(screen_position)
 		if station_index == -1:
 			hud.set_mode(build_mode, "TAP DIRECTLY ON A STATION")
@@ -184,10 +187,7 @@ func _handle_map_tap(screen_position: Vector2) -> void:
 		else:
 			var start_station := pending_track_start
 			var end_station := station_index
-			if build_mode == "parallel":
-				_add_parallel_track_pair(start_station, end_station)
-			else:
-				_add_track_edge(start_station, end_station, stations[start_station], stations[end_station], "single", -1, 0, 1, 0.0)
+			_add_track_edge(start_station, end_station, stations[start_station], stations[end_station], "single", -1, 0, 1, 0.0)
 			pending_track_start = -1
 			queue_redraw()
 			hud.set_mode(build_mode, "TRACKS CONNECTED  ·  SELECT ANOTHER START" if build_mode == "parallel" else "TRACK CONNECTED  ·  SELECT ANOTHER START")
@@ -226,10 +226,73 @@ func _handle_curve_tap(screen_position: Vector2) -> void:
 		queue_redraw()
 		hud.set_mode(build_mode, "CURVE CONNECTED  ·  SELECT ANOTHER START")
 
+func _handle_parallel_curve_tap(screen_position: Vector2) -> void:
+	if curve_stage == 0:
+		var station_index := _find_station_near_screen(screen_position)
+		if station_index == -1:
+			hud.set_mode(build_mode, "SELECT AN EXISTING START STATION")
+			return
+		pending_curve_start = station_index
+		curve_stage = 1
+		var start_screen: Vector2 = get_viewport().get_canvas_transform() * stations[station_index]
+		var center := get_viewport_rect().size * 0.5
+		var direction := (center - start_screen).normalized()
+		if direction.length_squared() < 0.01:
+			direction = Vector2.RIGHT
+		var normal := Vector2(-direction.y, direction.x)
+		pending_curve_control = screen_to_world(start_screen + direction * 90.0 + normal * 55.0)
+		hud.set_mode(build_mode, "DRAG SHARED HANDLE  ·  TAP END STATION")
+		queue_redraw()
+		return
+	var end_index := _find_station_near_screen(screen_position)
+	if end_index == -1:
+		hud.set_mode(build_mode, "TAP AN EXISTING END STATION")
+		return
+	if end_index == pending_curve_start:
+		hud.set_mode(build_mode, "CHOOSE A DIFFERENT END STATION")
+		return
+	var curve_start: Vector2 = stations[pending_curve_start]
+	var curve_end: Vector2 = stations[end_index]
+	var control := _constrain_curve_control(curve_start, pending_curve_control, curve_end)
+	var pair := _offset_parallel_curve(_make_curve_points(curve_start, control, curve_end), PARALLEL_CENTERLINE_SPACING * 0.5)
+	if pair.size() != 2 or pair[0].size() < 2 or pair[1].size() < 2:
+		hud.set_mode(build_mode, "COULD NOT CREATE PARALLEL CURVE")
+		return
+	parallel_curve_segments.append({"paths": pair, "start_station": pending_curve_start, "end_station": end_index})
+	var group_id := next_track_edge_id
+	for lane in range(2):
+		var path: PackedVector2Array = pair[lane]
+		track_edges.append({"id": next_track_edge_id, "start_station": pending_curve_start, "end_station": end_index, "start_point": path[0], "end_point": path[path.size() - 1], "kind": "parallel_curve", "parallel_group": group_id, "lane_index": lane, "lane_count": 2, "centerline_spacing": PARALLEL_CENTERLINE_SPACING})
+		next_track_edge_id += 1
+	pending_curve_start = -1
+	curve_stage = 0
+	queue_redraw()
+	hud.set_mode(build_mode, "PARALLEL CURVE CONNECTED  ·  SELECT ANOTHER START")
+
+func _offset_parallel_curve(centerline: PackedVector2Array, half_spacing: float) -> Array[PackedVector2Array]:
+	var first := PackedVector2Array()
+	var second := PackedVector2Array()
+	if centerline.size() < 2:
+		return [first, second]
+	for index in range(centerline.size()):
+		var tangent: Vector2
+		if index == 0:
+			tangent = (centerline[1] - centerline[0]).normalized()
+		elif index == centerline.size() - 1:
+			tangent = (centerline[index] - centerline[index - 1]).normalized()
+		else:
+			tangent = (centerline[index + 1] - centerline[index - 1]).normalized()
+		if tangent == Vector2.ZERO:
+			return []
+		var normal := Vector2(-tangent.y, tangent.x)
+		first.append(centerline[index] + normal * half_spacing)
+		second.append(centerline[index] - normal * half_spacing)
+	return [first, second]
+
 func _try_begin_curve_handle_drag(screen_position: Vector2, touch_index: int) -> bool:
 	if curve_handle_dragging:
 		return true
-	if build_mode != "curve":
+	if build_mode != "curve" and build_mode != "parallel":
 		return false
 	var transform := get_viewport().get_canvas_transform()
 	if curve_stage == 1 and pending_curve_start >= 0:
@@ -536,7 +599,7 @@ func _select_parallel_mode() -> void:
 	pending_track_start = -1
 	pending_curve_start = -1
 	curve_stage = 0
-	hud.set_mode(build_mode, "TAP TWO STATIONS TO PLACE PARALLEL TRACKS" if build_mode == "parallel" else "DRAG TO MOVE  ·  PINCH TO ZOOM")
+	hud.set_mode(build_mode, "TAP START  ·  DRAG SHARED CURVE HANDLE  ·  TAP END" if build_mode == "parallel" else "DRAG TO MOVE  ·  PINCH TO ZOOM")
 
 func _draw() -> void:
 	for index in range(curve_segments.size()):
@@ -556,6 +619,12 @@ func _draw() -> void:
 		_draw_track_preview()
 	if build_mode == "curve" and pending_curve_start >= 0 and pending_curve_start < stations.size():
 		_draw_curve_preview()
+	if build_mode == "parallel" and pending_curve_start >= 0 and pending_curve_start < stations.size():
+		_draw_parallel_curve_preview()
+	for segment in parallel_curve_segments:
+		for path in segment["paths"]:
+			if path.size() > 1:
+				draw_polyline(path, Color(0.24, 0.86, 0.78), 7.0, true)
 	for index in range(stations.size()):
 		var station := stations[index]
 		draw_circle(station, 12.0, Color(0.88, 0.96, 1.0))
@@ -572,6 +641,20 @@ func _draw_completed_curve_handle(curve: Dictionary, is_being_edited: bool) -> v
 	draw_circle(control, radius, fill)
 	draw_circle(control, 10.0 / zoom_scale, Color(0.55, 1.0, 0.94, 0.98))
 	draw_arc(control, 27.0 / zoom_scale, 0.0, TAU, 40, Color(0.72, 1.0, 0.97, 1.0), 3.0 / zoom_scale, true)
+
+func _draw_parallel_curve_preview() -> void:
+	var start_point: Vector2 = stations[pending_curve_start]
+	var end_point := get_snapped_world_position(get_viewport_rect().size * 0.5)
+	var control := _constrain_curve_control(start_point, pending_curve_control, end_point)
+	var pair := _offset_parallel_curve(_make_curve_points(start_point, control, end_point), PARALLEL_CENTERLINE_SPACING * 0.5)
+	for path in pair:
+		if path.size() > 1:
+			draw_polyline(path, Color(0.42, 1.0, 0.92, 0.92), 4.0 / camera.zoom.x, true)
+	draw_line(start_point, control, Color(0.72, 1.0, 0.97, 0.72), 2.0 / camera.zoom.x, true)
+	var radius := 19.0 / camera.zoom.x
+	draw_circle(control, radius, Color(0.05, 0.16, 0.17, 0.96))
+	draw_circle(control, 10.0 / camera.zoom.x, Color(0.55, 1.0, 0.94, 0.95))
+	draw_arc(control, 27.0 / camera.zoom.x, 0.0, TAU, 40, Color(0.72, 1.0, 0.97, 1.0), 3.0 / camera.zoom.x, true)
 
 func _draw_curve_preview() -> void:
 	var start_point: Vector2 = stations[pending_curve_start]
