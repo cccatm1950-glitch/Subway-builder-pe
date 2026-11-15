@@ -346,6 +346,10 @@ func _find_connected_track_tangent(station_point: Vector2, preferred_direction: 
 		if alignment > best_alignment:
 			best_alignment = alignment
 			best_tangent = travel_tangent
+	# Reject a branch that points substantially against the curve's local travel
+	# direction. Using it would pull the endpoint backward and create a visible hook.
+	if best_alignment < 0.15:
+		return Vector2.ZERO
 	return best_tangent
 
 func _select_curve_mode() -> void:
