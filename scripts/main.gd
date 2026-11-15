@@ -5,6 +5,7 @@ const MAX_ZOOM := 2.5
 const SNAP_SPACING := 32.0
 const TAP_DRAG_THRESHOLD := 16.0
 const STATION_PICK_RADIUS := 64.0
+const PARALLEL_CENTERLINE_SPACING := 48.0
 
 @onready var camera: Camera2D = $Camera2D
 @onready var hud = $CanvasLayer/HUD
@@ -41,6 +42,7 @@ func _ready() -> void:
 	hud.zoom_out_requested.connect(_zoom_out)
 	hud.station_mode_requested.connect(_select_station_mode)
 	hud.track_mode_requested.connect(_select_track_mode)
+	hud.parallel_mode_requested.connect(_select_parallel_mode)
 	hud.curve_mode_requested.connect(_select_curve_mode)
 	_update_coordinate_readout()
 	hud.set_input_status("INPUT READY")
@@ -168,7 +170,7 @@ func _handle_map_tap(screen_position: Vector2) -> void:
 			stations.append(station_position)
 			queue_redraw()
 		_update_coordinate_readout()
-	elif build_mode == "track":
+	elif build_mode == "track" or build_mode == "parallel":
 		var station_index := _find_station_near_screen(screen_position)
 		if station_index == -1:
 			hud.set_mode(build_mode, "TAP DIRECTLY ON A STATION")
@@ -181,24 +183,13 @@ func _handle_map_tap(screen_position: Vector2) -> void:
 		else:
 			var start_station := pending_track_start
 			var end_station := station_index
-			track_segments.append(stations[start_station])
-			track_segments.append(stations[end_station])
-			track_edges.append({
-				"id": next_track_edge_id,
-				"start_station": start_station,
-				"end_station": end_station,
-				"start_point": stations[start_station],
-				"end_point": stations[end_station],
-				"kind": "single",
-				"parallel_group": -1,
-				"lane_index": 0,
-				"lane_count": 1,
-				"centerline_spacing": 0.0
-			})
-			next_track_edge_id += 1
+			if build_mode == "parallel":
+				_add_parallel_track_pair(start_station, end_station)
+			else:
+				_add_track_edge(start_station, end_station, stations[start_station], stations[end_station], "single", -1, 0, 1, 0.0)
 			pending_track_start = -1
 			queue_redraw()
-			hud.set_mode(build_mode, "TRACK CONNECTED  ·  SELECT ANOTHER START")
+			hud.set_mode(build_mode, "TRACKS CONNECTED  ·  SELECT ANOTHER START" if build_mode == "parallel" else "TRACK CONNECTED  ·  SELECT ANOTHER START")
 
 func _handle_curve_tap(screen_position: Vector2) -> void:
 	if curve_stage == 0:
@@ -336,6 +327,35 @@ func _make_curve_points(start_point: Vector2, control_point: Vector2, end_point:
 		points.append(second_point)
 	return points
 
+func _add_track_edge(start_station: int, end_station: int, start_point: Vector2, end_point: Vector2, kind: String, parallel_group: int, lane_index: int, lane_count: int, spacing: float) -> void:
+	track_segments.append(start_point)
+	track_segments.append(end_point)
+	track_edges.append({
+		"id": next_track_edge_id,
+		"start_station": start_station,
+		"end_station": end_station,
+		"start_point": start_point,
+		"end_point": end_point,
+		"kind": kind,
+		"parallel_group": parallel_group,
+		"lane_index": lane_index,
+		"lane_count": lane_count,
+		"centerline_spacing": spacing
+	})
+	next_track_edge_id += 1
+
+func _add_parallel_track_pair(start_station: int, end_station: int) -> void:
+	var start_point: Vector2 = stations[start_station]
+	var end_point: Vector2 = stations[end_station]
+	var direction := (end_point - start_point).normalized()
+	if direction == Vector2.ZERO:
+		return
+	var normal := Vector2(-direction.y, direction.x)
+	var half_spacing := PARALLEL_CENTERLINE_SPACING * 0.5
+	var group_id := next_track_edge_id
+	_add_track_edge(start_station, end_station, start_point + normal * half_spacing, end_point + normal * half_spacing, "parallel", group_id, 0, 2, PARALLEL_CENTERLINE_SPACING)
+	_add_track_edge(start_station, end_station, start_point - normal * half_spacing, end_point - normal * half_spacing, "parallel", group_id, 1, 2, PARALLEL_CENTERLINE_SPACING)
+
 func _get_station_track_degree(station_index: int) -> int:
 	var degree := 0
 	for edge in track_edges:
@@ -373,23 +393,23 @@ func _find_connected_track_tangent(station_point: Vector2, preferred_direction: 
 	var best_tangent := Vector2.ZERO
 	var best_alignment := -INF
 	for edge in track_edges:
-		var start_point: Vector2 = edge.get("start_point", Vector2.ZERO)
-		var end_point: Vector2 = edge.get("end_point", Vector2.ZERO)
-		var neighbor := Vector2.ZERO
-		if int(edge.get("start_station", -1)) >= 0 and stations[int(edge["start_station"])] == station_point:
-			neighbor = end_point
-		elif int(edge.get("end_station", -1)) >= 0 and stations[int(edge["end_station"])] == station_point:
-			neighbor = start_point
-		else:
+		var start_index := int(edge.get("start_station", -1))
+		var end_index := int(edge.get("end_station", -1))
+		if start_index < 0 or end_index < 0 or start_index >= stations.size() or end_index >= stations.size():
 			continue
-		var away_from_station := (neighbor - station_point).normalized()
-		if away_from_station == Vector2.ZERO:
+		if stations[start_index] != station_point and stations[end_index] != station_point:
 			continue
-		var travel_tangent := -away_from_station if at_curve_end else away_from_station
-		var alignment := travel_tangent.dot(preferred_direction)
+		var start_point: Vector2 = edge.get("start_point", stations[start_index])
+		var end_point: Vector2 = edge.get("end_point", stations[end_index])
+		var tangent := (end_point - start_point).normalized()
+		if tangent == Vector2.ZERO:
+			continue
+		if tangent.dot(preferred_direction) < 0.0:
+			tangent = -tangent
+		var alignment := tangent.dot(preferred_direction)
 		if alignment > best_alignment:
 			best_alignment = alignment
-			best_tangent = travel_tangent
+			best_tangent = tangent
 	if best_alignment < 0.15:
 		return Vector2.ZERO
 	return best_tangent
@@ -429,7 +449,14 @@ func _select_track_mode() -> void:
 	pending_track_start = -1
 	pending_curve_start = -1
 	curve_stage = 0
-	hud.set_mode(build_mode, "TAP TWO DIFFERENT STATIONS TO CONNECT" if build_mode == "track" else "DRAG TO MOVE  ·  PINCH TO ZOOM")
+	hud.set_mode(build_mode, "TAP TWO STATIONS TO CONNECT ONE TRACK" if build_mode == "track" else "DRAG TO MOVE  ·  PINCH TO ZOOM")
+
+func _select_parallel_mode() -> void:
+	build_mode = "" if build_mode == "parallel" else "parallel"
+	pending_track_start = -1
+	pending_curve_start = -1
+	curve_stage = 0
+	hud.set_mode(build_mode, "TAP TWO STATIONS TO PLACE PARALLEL TRACKS" if build_mode == "parallel" else "DRAG TO MOVE  ·  PINCH TO ZOOM")
 
 func _draw() -> void:
 	for index in range(curve_segments.size()):
