@@ -107,7 +107,7 @@ func _handle_screen_touch(event: InputEventScreenTouch) -> void:
 
 func _handle_screen_drag(event: InputEventScreenDrag) -> void:
 	if curve_handle_dragging and curve_handle_touch_index == event.index:
-		pending_curve_control = screen_to_world(event.position)
+		_move_curve_handle(event.position)
 		queue_redraw()
 		return
 	if ignored_touches.has(event.index):
@@ -206,7 +206,10 @@ func _handle_curve_tap(screen_position: Vector2) -> void:
 		if end_index == pending_curve_start:
 			hud.set_mode(build_mode, "CHOOSE A DIFFERENT END STATION")
 			return
-		curve_segments.append({"start": stations[pending_curve_start], "control": pending_curve_control, "end": stations[end_index]})
+		var curve_start: Vector2 = stations[pending_curve_start]
+		var curve_end: Vector2 = stations[end_index]
+		var curve_control := _constrain_curve_control(curve_start, pending_curve_control, curve_end)
+		curve_segments.append({"start": curve_start, "control": curve_control, "end": curve_end})
 		pending_curve_start = -1
 		curve_stage = 0
 		queue_redraw()
@@ -239,9 +242,27 @@ func _try_begin_curve_handle_drag(screen_position: Vector2, touch_index: int) ->
 func _move_curve_handle(screen_position: Vector2) -> void:
 	var new_control := screen_to_world(screen_position)
 	if editing_curve_index >= 0 and editing_curve_index < curve_segments.size():
-		curve_segments[editing_curve_index]["control"] = new_control
+		var curve: Dictionary = curve_segments[editing_curve_index]
+		curve["control"] = _constrain_curve_control(curve["start"], new_control, curve["end"])
 	else:
-		pending_curve_control = new_control
+		if pending_curve_start >= 0 and pending_curve_start < stations.size():
+			var preview_end := get_snapped_world_position(get_viewport_rect().size * 0.5)
+			pending_curve_control = _constrain_curve_control(stations[pending_curve_start], new_control, preview_end)
+		else:
+			pending_curve_control = new_control
+
+func _constrain_curve_control(start_point: Vector2, raw_control: Vector2, end_point: Vector2) -> Vector2:
+	var chord := end_point - start_point
+	var chord_length := chord.length()
+	if chord_length < 1.0:
+		return (start_point + end_point) * 0.5
+	var direction := chord / chord_length
+	var normal := Vector2(-direction.y, direction.x)
+	var midpoint := (start_point + end_point) * 0.5
+	var offset := raw_control - midpoint
+	var along := clampf(offset.dot(direction), -chord_length * 0.35, chord_length * 0.35)
+	var sideways := clampf(offset.dot(normal), -chord_length * 0.55, chord_length * 0.55)
+	return midpoint + direction * along + normal * sideways
 
 func _make_curve_points(start_point: Vector2, control_point: Vector2, end_point: Vector2) -> PackedVector2Array:
 	var points := PackedVector2Array()
