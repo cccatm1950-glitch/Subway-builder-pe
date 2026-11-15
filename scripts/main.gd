@@ -261,7 +261,7 @@ func _constrain_curve_control(start_point: Vector2, raw_control: Vector2, end_po
 	var midpoint := (start_point + end_point) * 0.5
 	var offset := raw_control - midpoint
 	var along := clampf(offset.dot(direction), -chord_length * 0.35, chord_length * 0.35)
-	var sideways := clampf(offset.dot(normal), -chord_length * 0.55, chord_length * 0.55)
+	var sideways := clampf(offset.dot(normal), -chord_length * 0.8, chord_length * 0.8)
 	return midpoint + direction * along + normal * sideways
 
 func _make_curve_points(start_point: Vector2, control_point: Vector2, end_point: Vector2) -> PackedVector2Array:
