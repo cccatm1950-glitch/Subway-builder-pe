@@ -62,9 +62,9 @@ func _ready() -> void:
 	station_button.anchor_right = 0.0
 	station_button.anchor_top = 1.0
 	station_button.anchor_bottom = 1.0
-	station_button.offset_left = 20
+	station_button.offset_left = 12
 	station_button.offset_top = -112
-	station_button.offset_right = 142
+	station_button.offset_right = 112
 	station_button.offset_bottom = -52
 	station_button.pressed.connect(func(): station_mode_requested.emit())
 	add_child(station_button)
@@ -74,9 +74,9 @@ func _ready() -> void:
 	track_button.anchor_right = 0.0
 	track_button.anchor_top = 1.0
 	track_button.anchor_bottom = 1.0
-	track_button.offset_left = 12
+	track_button.offset_left = 120
 	track_button.offset_top = -112
-	track_button.offset_right = 112
+	track_button.offset_right = 220
 	track_button.offset_bottom = -52
 	track_button.pressed.connect(func(): track_mode_requested.emit())
 	add_child(track_button)
@@ -86,9 +86,9 @@ func _ready() -> void:
 	parallel_button.anchor_right = 0.0
 	parallel_button.anchor_top = 1.0
 	parallel_button.anchor_bottom = 1.0
-	parallel_button.offset_left = 120
+	parallel_button.offset_left = 228
 	parallel_button.offset_top = -112
-	parallel_button.offset_right = 244
+	parallel_button.offset_right = 352
 	parallel_button.offset_bottom = -52
 	parallel_button.pressed.connect(func(): parallel_mode_requested.emit())
 	add_child(parallel_button)
@@ -98,9 +98,9 @@ func _ready() -> void:
 	curve_button.anchor_right = 0.0
 	curve_button.anchor_top = 1.0
 	curve_button.anchor_bottom = 1.0
-	curve_button.offset_left = 252
+	curve_button.offset_left = 360
 	curve_button.offset_top = -112
-	curve_button.offset_right = 352
+	curve_button.offset_right = 460
 	curve_button.offset_bottom = -52
 	curve_button.pressed.connect(func(): curve_mode_requested.emit())
 	add_child(curve_button)
