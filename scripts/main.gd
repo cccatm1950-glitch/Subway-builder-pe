@@ -269,8 +269,14 @@ func _make_curve_points(start_point: Vector2, control_point: Vector2, end_point:
 	var chord := end_point - start_point
 	var chord_length := chord.length()
 	var chord_direction := chord.normalized() if chord_length > 0.001 else Vector2.RIGHT
-	var start_track_tangent := _find_connected_track_tangent(start_point, chord_direction)
-	var end_track_tangent := _find_connected_track_tangent(end_point, chord_direction)
+	var start_direction := (control_point - start_point).normalized()
+	var end_direction := (end_point - control_point).normalized()
+	if start_direction == Vector2.ZERO:
+		start_direction = chord_direction
+	if end_direction == Vector2.ZERO:
+		end_direction = chord_direction
+	var start_track_tangent := _find_connected_track_tangent(start_point, start_direction, false)
+	var end_track_tangent := _find_connected_track_tangent(end_point, end_direction, true)
 	if start_track_tangent == Vector2.ZERO and end_track_tangent == Vector2.ZERO:
 		for step in range(25):
 			var t := float(step) / 24.0
@@ -316,9 +322,9 @@ func _make_curve_points(start_point: Vector2, control_point: Vector2, end_point:
 		points.append(m.lerp(n, t))
 	return points
 
-func _find_connected_track_tangent(station_point: Vector2, preferred_direction: Vector2) -> Vector2:
+func _find_connected_track_tangent(station_point: Vector2, preferred_direction: Vector2, at_curve_end: bool) -> Vector2:
 	var best_tangent := Vector2.ZERO
-	var best_alignment := -1.0
+	var best_alignment := -INF
 	for index in range(0, track_segments.size(), 2):
 		if index + 1 >= track_segments.size():
 			continue
@@ -331,15 +337,15 @@ func _find_connected_track_tangent(station_point: Vector2, preferred_direction: 
 			neighbor = first
 		else:
 			continue
-		var tangent := (neighbor - station_point).normalized()
-		if tangent == Vector2.ZERO:
+		var away_from_station := (neighbor - station_point).normalized()
+		if away_from_station == Vector2.ZERO:
 			continue
-		if tangent.dot(preferred_direction) < 0.0:
-			tangent = -tangent
-		var alignment := absf(tangent.dot(preferred_direction))
+		# At the curve's end, travel points from the neighboring track into the station.
+		var travel_tangent := -away_from_station if at_curve_end else away_from_station
+		var alignment := travel_tangent.dot(preferred_direction)
 		if alignment > best_alignment:
 			best_alignment = alignment
-			best_tangent = tangent
+			best_tangent = travel_tangent
 	return best_tangent
 
 func _select_curve_mode() -> void:
