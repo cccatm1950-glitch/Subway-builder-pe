@@ -469,7 +469,7 @@ func _draw() -> void:
 	for index in range(0, track_segments.size(), 2):
 		if index + 1 < track_segments.size():
 			draw_line(track_segments[index], track_segments[index + 1], Color(0.24, 0.86, 0.78), 7.0, true)
-	if build_mode == "track" and pending_track_start >= 0 and pending_track_start < stations.size():
+	if (build_mode == "track" or build_mode == "parallel") and pending_track_start >= 0 and pending_track_start < stations.size():
 		_draw_track_preview()
 	if build_mode == "curve" and pending_curve_start >= 0 and pending_curve_start < stations.size():
 		_draw_curve_preview()
