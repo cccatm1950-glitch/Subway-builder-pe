@@ -382,20 +382,29 @@ func _build_parallel_merge_transition(start_station: int, end_station: int, star
 			lane_endpoints.append(edge.get("end_point", stations[merge_station]))
 	if lane_endpoints.size() < 2:
 		return {}
+	if lane_endpoints.size() > 2:
+		lane_endpoints.resize(2)
 
 	var original_merge_point := stations[merge_station]
 	var single_length := start_point.distance_to(end_point)
-	var merge_length := minf(PARALLEL_CENTERLINE_SPACING * 3.0, single_length * 0.45)
-	if merge_length < PARALLEL_CENTERLINE_SPACING * 0.75:
+	# Give both lanes enough room to converge gradually while reserving a
+	# meaningful straight section after the merge.
+	var merge_length := minf(PARALLEL_CENTERLINE_SPACING * 4.0, single_length * 0.58)
+	if merge_length < PARALLEL_CENTERLINE_SPACING * 1.25:
 		return {}
 	var merge_point := original_merge_point + outward_direction * merge_length
+	var normal := Vector2(-outward_direction.y, outward_direction.x)
 	var paths: Array[PackedVector2Array] = []
 	for lane_point in lane_endpoints:
+		var lateral_offset := (lane_point - original_merge_point).dot(normal)
 		var path := PackedVector2Array()
-		var first_control := lane_point + outward_direction * (merge_length * 0.42)
-		var second_control := merge_point - outward_direction * (merge_length * 0.28)
-		for step in range(21):
-			var t := float(step) / 20.0
+		# The first control preserves the lane's initial direction. The second
+		# retains a small fraction of its lateral offset, then eases to a shared
+		# merge point with a tangent aligned to the outgoing single track.
+		var first_control := lane_point + outward_direction * (merge_length * 0.38)
+		var second_control := merge_point - outward_direction * (merge_length * 0.24) + normal * (lateral_offset * 0.22)
+		for step in range(31):
+			var t := float(step) / 30.0
 			var u := 1.0 - t
 			var point := u * u * u * lane_point + 3.0 * u * u * t * first_control + 3.0 * u * t * t * second_control + t * t * t * merge_point
 			path.append(point)
