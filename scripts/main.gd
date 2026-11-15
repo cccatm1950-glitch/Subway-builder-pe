@@ -187,6 +187,8 @@ func _handle_map_tap(screen_position: Vector2) -> void:
 				"id": next_track_edge_id,
 				"start_station": start_station,
 				"end_station": end_station,
+				"start_point": stations[start_station],
+				"end_point": stations[end_station],
 				"kind": "single",
 				"parallel_group": -1,
 				"lane_index": 0,
@@ -370,29 +372,24 @@ func _get_station_track_directions(station_index: int) -> Array[Vector2]:
 func _find_connected_track_tangent(station_point: Vector2, preferred_direction: Vector2, at_curve_end: bool) -> Vector2:
 	var best_tangent := Vector2.ZERO
 	var best_alignment := -INF
-	for index in range(0, track_segments.size(), 2):
-		if index + 1 >= track_segments.size():
-			continue
-		var first: Vector2 = track_segments[index]
-		var second: Vector2 = track_segments[index + 1]
+	for edge in track_edges:
+		var start_point: Vector2 = edge.get("start_point", Vector2.ZERO)
+		var end_point: Vector2 = edge.get("end_point", Vector2.ZERO)
 		var neighbor := Vector2.ZERO
-		if first == station_point:
-			neighbor = second
-		elif second == station_point:
-			neighbor = first
+		if int(edge.get("start_station", -1)) >= 0 and stations[int(edge["start_station"])] == station_point:
+			neighbor = end_point
+		elif int(edge.get("end_station", -1)) >= 0 and stations[int(edge["end_station"])] == station_point:
+			neighbor = start_point
 		else:
 			continue
 		var away_from_station := (neighbor - station_point).normalized()
 		if away_from_station == Vector2.ZERO:
 			continue
-		# At the curve's end, travel points from the neighboring track into the station.
 		var travel_tangent := -away_from_station if at_curve_end else away_from_station
 		var alignment := travel_tangent.dot(preferred_direction)
 		if alignment > best_alignment:
 			best_alignment = alignment
 			best_tangent = travel_tangent
-	# Reject a branch that points substantially against the curve's local travel
-	# direction. Using it would pull the endpoint backward and create a visible hook.
 	if best_alignment < 0.15:
 		return Vector2.ZERO
 	return best_tangent
