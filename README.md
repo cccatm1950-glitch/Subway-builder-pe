@@ -12,7 +12,7 @@ An independent **Android-only** mobile subway-building game built with **Godot 4
 
 ## Project status
 
-Map and camera foundation stage. The first Android debug APK ran successfully on a physical phone. The current development step replaces the welcome screen with a procedural map grid, touch camera controls, zoom buttons, and a center crosshair. This updated scene still needs a fresh APK build and device test.
+Playable Android prototype with a procedural map, touch camera controls, station placement, single tracks, straight parallel tracks, editable single curves, and paired parallel curves. Junction geometry is under active refinement. Android debug APKs are exported through GitHub Actions for physical-device testing.
 
 ## Open the project
 
