@@ -450,8 +450,31 @@ func _build_parallel_merge_transition(start_station: int, end_station: int, star
 	if merge_station == -1 or outward_direction == Vector2.ZERO:
 		return {}
 
-	var groups := _get_parallel_groups_at_station(merge_station)
-	var selected_group := int(groups[0])
+	# Only create a merge when the new single track continues in roughly the
+	# same direction as an existing parallel pair. A perpendicular or opposing
+	# connection is a branch/junction, not a merge, and must remain independent.
+	var selected_group := -1
+	var best_alignment := 0.72
+	for edge in track_edges:
+		var group_id := int(edge.get("parallel_group", -1))
+		if group_id < 0:
+			continue
+		var edge_start := int(edge.get("start_station", -1))
+		var edge_end := int(edge.get("end_station", -1))
+		var neighbor := -1
+		if edge_start == merge_station:
+			neighbor = edge_end
+		elif edge_end == merge_station:
+			neighbor = edge_start
+		if neighbor < 0 or neighbor >= stations.size():
+			continue
+		var pair_direction := (stations[neighbor] - stations[merge_station]).normalized()
+		var alignment := pair_direction.dot(outward_direction)
+		if alignment > best_alignment:
+			best_alignment = alignment
+			selected_group = group_id
+	if selected_group < 0:
+		return {}
 	var lane_endpoints: Array[Vector2] = []
 	for edge in track_edges:
 		if int(edge.get("parallel_group", -1)) != selected_group:
