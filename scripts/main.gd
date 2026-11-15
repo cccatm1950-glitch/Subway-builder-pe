@@ -17,7 +17,7 @@ var previous_pinch_distance := 0.0
 var build_mode := ""
 var stations: Array[Vector2] = []
 var track_segments: Array[Vector2] = []
-var curve_segments: Array[PackedVector2Array] = []
+var curve_segments: Array[Dictionary] = []
 var pending_track_start := -1
 var pending_curve_start := -1
 var pending_curve_control := Vector2.ZERO
@@ -27,6 +27,7 @@ var mouse_pointer_start := Vector2.ZERO
 var mouse_pointer_dragged := false
 var curve_handle_dragging := false
 var curve_handle_touch_index := -1
+var editing_curve_index := -1
 
 func _ready() -> void:
 	camera.enabled = true
@@ -49,7 +50,7 @@ func _input(event: InputEvent) -> void:
 		_handle_mouse_button(event)
 	elif event is InputEventMouseMotion and (event.button_mask & MOUSE_BUTTON_MASK_LEFT) != 0:
 		if curve_handle_dragging and curve_handle_touch_index == -2:
-			pending_curve_control = screen_to_world(event.position)
+			_move_curve_handle(event.position)
 			queue_redraw()
 			return
 		if mouse_pointer_down:
@@ -203,27 +204,42 @@ func _handle_curve_tap(screen_position: Vector2) -> void:
 		if end_index == pending_curve_start:
 			hud.set_mode(build_mode, "CHOOSE A DIFFERENT END STATION")
 			return
-		var points := _make_curve_points(stations[pending_curve_start], pending_curve_control, stations[end_index])
-		curve_segments.append(points)
+		curve_segments.append({"start": stations[pending_curve_start], "control": pending_curve_control, "end": stations[end_index]})
 		pending_curve_start = -1
 		curve_stage = 0
 		queue_redraw()
 		hud.set_mode(build_mode, "CURVE CONNECTED  ·  SELECT ANOTHER START")
 
 func _try_begin_curve_handle_drag(screen_position: Vector2, touch_index: int) -> bool:
-	# A physical touch can also arrive as an emulated mouse press. Never let
-	# that second event steal ownership from the original touch.
 	if curve_handle_dragging:
 		return true
-	if build_mode != "curve" or curve_stage != 1 or pending_curve_start < 0:
+	if build_mode != "curve":
 		return false
-	var handle_screen: Vector2 = get_viewport().get_canvas_transform() * pending_curve_control
-	if handle_screen.distance_to(screen_position) > 48.0:
-		return false
-	curve_handle_dragging = true
-	curve_handle_touch_index = touch_index
-	hud.set_input_status("SHAPING CURVE")
-	return true
+	var transform := get_viewport().get_canvas_transform()
+	if curve_stage == 1 and pending_curve_start >= 0:
+		var pending_screen: Vector2 = transform * pending_curve_control
+		if pending_screen.distance_to(screen_position) <= 48.0:
+			editing_curve_index = -1
+			curve_handle_dragging = true
+			curve_handle_touch_index = touch_index
+			hud.set_input_status("SHAPING NEW CURVE")
+			return true
+	for index in range(curve_segments.size() - 1, -1, -1):
+		var handle_screen: Vector2 = transform * curve_segments[index]["control"]
+		if handle_screen.distance_to(screen_position) <= 48.0:
+			editing_curve_index = index
+			curve_handle_dragging = true
+			curve_handle_touch_index = touch_index
+			hud.set_input_status("EDITING COMPLETED CURVE")
+			return true
+	return false
+
+func _move_curve_handle(screen_position: Vector2) -> void:
+	var new_control := screen_to_world(screen_position)
+	if editing_curve_index >= 0 and editing_curve_index < curve_segments.size():
+		curve_segments[editing_curve_index]["control"] = new_control
+	else:
+		pending_curve_control = new_control
 
 func _make_curve_points(start_point: Vector2, control_point: Vector2, end_point: Vector2) -> PackedVector2Array:
 	var points := PackedVector2Array()
@@ -237,6 +253,7 @@ func _select_curve_mode() -> void:
 	build_mode = "" if build_mode == "curve" else "curve"
 	curve_handle_dragging = false
 	curve_handle_touch_index = -1
+	editing_curve_index = -1
 	pending_track_start = -1
 	pending_curve_start = -1
 	curve_stage = 0
@@ -270,9 +287,13 @@ func _select_track_mode() -> void:
 	hud.set_mode(build_mode, "TAP TWO DIFFERENT STATIONS TO CONNECT" if build_mode == "track" else "DRAG TO MOVE  ·  PINCH TO ZOOM")
 
 func _draw() -> void:
-	for curve in curve_segments:
-		if curve.size() > 1:
-			draw_polyline(curve, Color(0.24, 0.86, 0.78), 7.0, true)
+	for index in range(curve_segments.size()):
+		var curve: Dictionary = curve_segments[index]
+		var curve_points := _make_curve_points(curve["start"], curve["control"], curve["end"])
+		if curve_points.size() > 1:
+			draw_polyline(curve_points, Color(0.24, 0.86, 0.78), 7.0, true)
+		if build_mode == "curve":
+			_draw_completed_curve_handle(curve, index == editing_curve_index)
 	for index in range(0, track_segments.size(), 2):
 		if index + 1 < track_segments.size():
 			draw_line(track_segments[index], track_segments[index + 1], Color(0.24, 0.86, 0.78), 7.0, true)
@@ -286,6 +307,16 @@ func _draw() -> void:
 		draw_arc(station, 16.0, 0.0, TAU, 32, Color(0.25, 0.88, 0.82), 2.0, true)
 		if build_mode == "track" and index == pending_track_start:
 			draw_arc(station, 23.0, 0.0, TAU, 32, Color(1.0, 1.0, 1.0), 2.0, true)
+
+func _draw_completed_curve_handle(curve: Dictionary, is_being_edited: bool) -> void:
+	var control: Vector2 = curve["control"]
+	var zoom_scale := camera.zoom.x
+	draw_line(curve["start"], control, Color(0.72, 1.0, 0.97, 0.55), 2.0 / zoom_scale, true)
+	var radius := 19.0 / zoom_scale
+	var fill := Color(0.08, 0.22, 0.23, 0.98) if not is_being_edited else Color(0.12, 0.34, 0.34, 1.0)
+	draw_circle(control, radius, fill)
+	draw_circle(control, 10.0 / zoom_scale, Color(0.55, 1.0, 0.94, 0.98))
+	draw_arc(control, 27.0 / zoom_scale, 0.0, TAU, 40, Color(0.72, 1.0, 0.97, 1.0), 3.0 / zoom_scale, true)
 
 func _draw_curve_preview() -> void:
 	var start_point: Vector2 = stations[pending_curve_start]
