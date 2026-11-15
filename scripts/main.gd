@@ -285,25 +285,25 @@ func _make_curve_points(start_point: Vector2, control_point: Vector2, end_point:
 	if end_tangent == Vector2.ZERO:
 		end_tangent = chord_direction
 
-	# Build two cubic sections that meet exactly at the draggable bend handle.
-	# Their shared tangent follows the overall route direction, preventing the
-	# repeated-control-point quintic from flattening and folding near junctions.
-	var center_tangent := chord_direction
-	if center_tangent.dot(start_to_handle.normalized()) < -0.25:
-		center_tangent = (start_to_handle.normalized() + handle_to_end.normalized()).normalized()
-	if center_tangent == Vector2.ZERO:
-		center_tangent = chord_direction
+	# Build two cubic sections with matched first and second derivatives
+	# at the draggable handle. Matching curvature removes the visible "knee"
+	# where the two halves previously met.
 	var start_handle_length := minf(first_length * 0.38, maxf(chord_length * 0.22, 8.0))
 	var end_handle_length := minf(second_length * 0.38, maxf(chord_length * 0.22, 8.0))
-	var center_handle_length := minf(minf(first_length, second_length) * 0.32, maxf(chord_length * 0.18, 6.0))
 
 	var a0 := start_point
 	var a1 := start_point + start_tangent * start_handle_length
-	var a2 := control_point - center_tangent * center_handle_length
+	var b2 := end_point - end_tangent * end_handle_length
+	# For equal parameter intervals, this center vector makes the second
+	# derivatives equal on both sides of the handle (C2 continuity).
+	var center_vector := (b2 - a1) * 0.25
+	var max_center_handle := minf(minf(first_length, second_length) * 0.32, maxf(chord_length * 0.18, 6.0))
+	if center_vector.length() > max_center_handle:
+		center_vector = center_vector.normalized() * max_center_handle
+	var a2 := control_point - center_vector
 	var a3 := control_point
 	var b0 := control_point
-	var b1 := control_point + center_tangent * center_handle_length
-	var b2 := end_point - end_tangent * end_handle_length
+	var b1 := control_point + center_vector
 	var b3 := end_point
 	for step in range(21):
 		var t := float(step) / 20.0
