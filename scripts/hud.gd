@@ -5,6 +5,7 @@ signal zoom_out_requested
 signal station_mode_requested
 signal track_mode_requested
 signal parallel_mode_requested
+signal parallel_curve_mode_requested
 signal curve_mode_requested
 signal cancel_build_requested
 
@@ -13,6 +14,7 @@ var hint_label: Label
 var station_button: Button
 var track_button: Button
 var parallel_button: Button
+var parallel_curve_button: Button
 var curve_button: Button
 var input_status_label: Label
 
@@ -64,7 +66,7 @@ func _ready() -> void:
 	station_button.anchor_bottom = 1.0
 	station_button.offset_left = 12
 	station_button.offset_top = -112
-	station_button.offset_right = 112
+	station_button.offset_right = 96
 	station_button.offset_bottom = -52
 	station_button.pressed.connect(func(): station_mode_requested.emit())
 	add_child(station_button)
@@ -74,9 +76,9 @@ func _ready() -> void:
 	track_button.anchor_right = 0.0
 	track_button.anchor_top = 1.0
 	track_button.anchor_bottom = 1.0
-	track_button.offset_left = 120
+	track_button.offset_left = 102
 	track_button.offset_top = -112
-	track_button.offset_right = 220
+	track_button.offset_right = 186
 	track_button.offset_bottom = -52
 	track_button.pressed.connect(func(): track_mode_requested.emit())
 	add_child(track_button)
@@ -86,22 +88,36 @@ func _ready() -> void:
 	parallel_button.anchor_right = 0.0
 	parallel_button.anchor_top = 1.0
 	parallel_button.anchor_bottom = 1.0
-	parallel_button.offset_left = 228
+	parallel_button.offset_left = 192
 	parallel_button.offset_top = -112
-	parallel_button.offset_right = 352
+	parallel_button.offset_right = 278
 	parallel_button.offset_bottom = -52
 	parallel_button.pressed.connect(func(): parallel_mode_requested.emit())
 	add_child(parallel_button)
+
+	parallel_curve_button = _make_action_button("PAR CURVE")
+	parallel_curve_button.anchor_left = 0.0
+	parallel_curve_button.anchor_right = 0.0
+	parallel_curve_button.anchor_top = 1.0
+	parallel_curve_button.anchor_bottom = 1.0
+	parallel_curve_button.offset_left = 284
+	parallel_curve_button.offset_top = -112
+	parallel_curve_button.offset_right = 376
+	parallel_curve_button.offset_bottom = -52
+	parallel_curve_button.add_theme_font_size_override("font_size", 11)
+	parallel_curve_button.pressed.connect(func(): parallel_curve_mode_requested.emit())
+	add_child(parallel_curve_button)
 
 	curve_button = _make_action_button("CURVE")
 	curve_button.anchor_left = 0.0
 	curve_button.anchor_right = 0.0
 	curve_button.anchor_top = 1.0
 	curve_button.anchor_bottom = 1.0
-	curve_button.offset_left = 360
+	curve_button.offset_left = 382
 	curve_button.offset_top = -112
 	curve_button.offset_right = 460
 	curve_button.offset_bottom = -52
+	curve_button.add_theme_font_size_override("font_size", 11)
 	curve_button.pressed.connect(func(): curve_mode_requested.emit())
 	add_child(curve_button)
 
@@ -155,7 +171,7 @@ func _button_style(fill: Color) -> StyleBoxFlat:
 	return style
 
 func is_ui_position(screen_position: Vector2) -> bool:
-	for control in [station_button, track_button, parallel_button, curve_button]:
+	for control in [station_button, track_button, parallel_button, parallel_curve_button, curve_button]:
 		if is_instance_valid(control) and control.get_global_rect().has_point(screen_position):
 			return true
 	for control in get_children():
@@ -176,6 +192,7 @@ func set_mode(mode: String, message: String) -> void:
 	station_button.modulate = Color(1, 1, 1, 1) if mode == "station" else Color(0.72, 0.82, 0.86, 0.85)
 	track_button.modulate = Color(1, 1, 1, 1) if mode == "track" else Color(0.72, 0.82, 0.86, 0.85)
 	parallel_button.modulate = Color(1, 1, 1, 1) if mode == "parallel" else Color(0.72, 0.82, 0.86, 0.85)
+	parallel_curve_button.modulate = Color(1, 1, 1, 1) if mode == "parallel_curve" else Color(0.72, 0.82, 0.86, 0.85)
 	curve_button.modulate = Color(1, 1, 1, 1) if mode == "curve" else Color(0.72, 0.82, 0.86, 0.85)
 
 func _draw() -> void:
