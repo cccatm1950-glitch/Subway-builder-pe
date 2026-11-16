@@ -258,25 +258,74 @@ func _handle_waypoint_tap(screen_position: Vector2) -> void:
 
 func _make_waypoint_route(route_points: Array[Vector2]) -> PackedVector2Array:
 	var result := PackedVector2Array()
-	if route_points.size() < 2:
+	var point_count := route_points.size()
+	if point_count < 2:
 		return result
-	if route_points.size() == 2:
+	if point_count == 2:
 		result.append(route_points[0])
 		result.append(route_points[1])
 		return result
-	# Catmull-Rom interpolation gives each waypoint a smooth, editable bend.
-	for segment in range(route_points.size() - 1):
-		var p0: Vector2 = route_points[maxi(segment - 1, 0)]
-		var p1: Vector2 = route_points[segment]
-		var p2: Vector2 = route_points[segment + 1]
-		var p3: Vector2 = route_points[mini(segment + 2, route_points.size() - 1)]
-		for step in range(13):
+
+	# A chord-length-parameterized natural cubic spline passes through every
+	# placed waypoint and has matching first and second derivatives at joins.
+	# The anchors themselves are never moved or replaced.
+	var intervals: Array[float] = []
+	for index in range(point_count - 1):
+		var distance := route_points[index].distance_to(route_points[index + 1])
+		if distance < 0.001:
+			return PackedVector2Array()
+		intervals.append(distance)
+
+	var lower: Array[float] = []
+	var diagonal: Array[float] = []
+	var upper: Array[float] = []
+	var rhs: Array[Vector2] = []
+	for index in range(point_count):
+		lower.append(0.0)
+		diagonal.append(1.0)
+		upper.append(0.0)
+		rhs.append(Vector2.ZERO)
+
+	for index in range(1, point_count - 1):
+		var previous_h: float = intervals[index - 1]
+		var next_h: float = intervals[index]
+		lower[index] = previous_h
+		diagonal[index] = 2.0 * (previous_h + next_h)
+		upper[index] = next_h
+		rhs[index] = 6.0 * (
+			(route_points[index + 1] - route_points[index]) / next_h
+			- (route_points[index] - route_points[index - 1]) / previous_h
+		)
+
+	# Thomas algorithm for the tridiagonal system of vector second derivatives.
+	var c_prime: Array[float] = []
+	var d_prime: Array[Vector2] = []
+	for index in range(point_count):
+		var denominator := diagonal[index]
+		if index > 0:
+			denominator -= lower[index] * c_prime[index - 1]
+		var c_value := upper[index] / denominator if index < point_count - 1 else 0.0
+		var d_value := (rhs[index] - lower[index] * d_prime[index - 1]) / denominator if index > 0 else rhs[index] / denominator
+		c_prime.append(c_value)
+		d_prime.append(d_value)
+
+	var second_derivatives: Array[Vector2] = []
+	for index in range(point_count):
+		second_derivatives.append(Vector2.ZERO)
+	second_derivatives[point_count - 1] = d_prime[point_count - 1]
+	for index in range(point_count - 2, -1, -1):
+		second_derivatives[index] = d_prime[index] - c_prime[index] * second_derivatives[index + 1]
+
+	for segment in range(point_count - 1):
+		var h: float = intervals[segment]
+		for step in range(17):
 			if segment > 0 and step == 0:
 				continue
-			var t := float(step) / 12.0
-			var t2 := t * t
-			var t3 := t2 * t
-			var point := 0.5 * ((2.0 * p1) + (-p0 + p2) * t + (2.0 * p0 - 5.0 * p1 + 4.0 * p2 - p3) * t2 + (-p0 + 3.0 * p1 - 3.0 * p2 + p3) * t3)
+			var t := float(step) / 16.0
+			var a := 1.0 - t
+			var b := t
+			var point := a * route_points[segment] + b * route_points[segment + 1]
+			point += ((a * a * a - a) * second_derivatives[segment] + (b * b * b - b) * second_derivatives[segment + 1]) * (h * h / 6.0)
 			result.append(point)
 	return result
 
