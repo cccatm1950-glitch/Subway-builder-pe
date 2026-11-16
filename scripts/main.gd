@@ -52,6 +52,7 @@ func _ready() -> void:
 	camera.enabled = true
 	camera.position = Vector2.ZERO
 	camera.zoom = Vector2.ONE
+	hud.map_input_event.connect(_handle_hud_map_input)
 	hud.zoom_in_requested.connect(_zoom_in)
 	hud.zoom_out_requested.connect(_zoom_out)
 	hud.station_mode_requested.connect(_select_station_mode)
@@ -64,12 +65,14 @@ func _ready() -> void:
 	hud.set_input_status("INPUT READY")
 
 
-func _input(event: InputEvent) -> void:
+func _handle_hud_map_input(event: InputEvent) -> void:
 	if event is InputEventScreenTouch:
 		_handle_screen_touch(event)
 	elif event is InputEventScreenDrag:
 		_handle_screen_drag(event)
-	elif event is InputEventMouseButton:
+
+func _input(event: InputEvent) -> void:
+	if event is InputEventMouseButton:
 		_handle_mouse_button(event)
 	elif event is InputEventMouseMotion and (event.button_mask & MOUSE_BUTTON_MASK_LEFT) != 0:
 		if curve_handle_dragging and curve_handle_touch_index == -2:
