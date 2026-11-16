@@ -543,15 +543,17 @@ func _build_parallel_merge_transition(start_station: int, end_station: int, star
 		var merge_lane := 1
 		var through_point: Vector2 = lane_endpoints[through_lane]
 		var merging_point: Vector2 = lane_endpoints[merge_lane]
+		# Continue the retained lane forward; convergence happens beyond
+		# the station, not back at the station marker itself.
+		merge_point = through_point + outward_direction * merge_length
 		var first_control := merging_point + outward_direction * (merge_length * 0.38)
-		var second_control := through_point - outward_direction * (merge_length * 0.24)
+		var second_control := merge_point - outward_direction * (merge_length * 0.24)
 		var merge_path := PackedVector2Array()
 		for step in range(41):
 			var t := float(step) / 40.0
 			var u := 1.0 - t
-			merge_path.append(u * u * u * merging_point + 3.0 * u * u * t * first_control + 3.0 * u * t * t * second_control + t * t * t * through_point)
+			merge_path.append(u * u * u * merging_point + 3.0 * u * u * t * first_control + 3.0 * u * t * t * second_control + t * t * t * merge_point)
 		paths.append(merge_path)
-		merge_point = through_point
 	if toward_end:
 		return {"draw_start": merge_point, "draw_end": end_point, "paths": paths}
 	return {"draw_start": start_point, "draw_end": merge_point, "paths": paths}
