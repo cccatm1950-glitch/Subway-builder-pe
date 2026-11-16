@@ -7,6 +7,7 @@ signal track_mode_requested
 signal parallel_mode_requested
 signal parallel_curve_mode_requested
 signal curve_mode_requested
+signal waypoint_mode_requested
 signal cancel_build_requested
 
 var coordinate_label: Label
@@ -16,6 +17,7 @@ var track_button: Button
 var parallel_button: Button
 var parallel_curve_button: Button
 var curve_button: Button
+var waypoint_button: Button
 var input_status_label: Label
 
 func _ready() -> void:
@@ -121,6 +123,19 @@ func _ready() -> void:
 	curve_button.pressed.connect(func(): curve_mode_requested.emit())
 	add_child(curve_button)
 
+	waypoint_button = _make_action_button("WAYPOINT")
+	waypoint_button.anchor_left = 0.0
+	waypoint_button.anchor_right = 0.0
+	waypoint_button.anchor_top = 1.0
+	waypoint_button.anchor_bottom = 1.0
+	waypoint_button.offset_left = 466
+	waypoint_button.offset_top = -112
+	waypoint_button.offset_right = 558
+	waypoint_button.offset_bottom = -52
+	waypoint_button.add_theme_font_size_override("font_size", 11)
+	waypoint_button.pressed.connect(func(): waypoint_mode_requested.emit())
+	add_child(waypoint_button)
+
 	var zoom_in := _make_zoom_button("+")
 	zoom_in.anchor_left = 1.0
 	zoom_in.anchor_right = 1.0
@@ -171,7 +186,7 @@ func _button_style(fill: Color) -> StyleBoxFlat:
 	return style
 
 func is_ui_position(screen_position: Vector2) -> bool:
-	for control in [station_button, track_button, parallel_button, parallel_curve_button, curve_button]:
+	for control in [station_button, track_button, parallel_button, parallel_curve_button, curve_button, waypoint_button]:
 		if is_instance_valid(control) and control.get_global_rect().has_point(screen_position):
 			return true
 	for control in get_children():
@@ -194,6 +209,7 @@ func set_mode(mode: String, message: String) -> void:
 	parallel_button.modulate = Color(1, 1, 1, 1) if mode == "parallel" else Color(0.72, 0.82, 0.86, 0.85)
 	parallel_curve_button.modulate = Color(1, 1, 1, 1) if mode == "parallel_curve" else Color(0.72, 0.82, 0.86, 0.85)
 	curve_button.modulate = Color(1, 1, 1, 1) if mode == "curve" else Color(0.72, 0.82, 0.86, 0.85)
+	waypoint_button.modulate = Color(1, 1, 1, 1) if mode == "waypoint" else Color(0.72, 0.82, 0.86, 0.85)
 
 func _draw() -> void:
 	var center := size * 0.5
