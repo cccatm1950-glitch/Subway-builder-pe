@@ -310,8 +310,9 @@ func _handle_parallel_curve_tap(screen_position: Vector2) -> void:
 	if (lane_node_id < 0 and station_index < 0) or (lane_node_id == pending_curve_start_node and pending_curve_start_node >= 0) or (lane_node_id < 0 and pending_curve_start_node < 0 and station_index == pending_curve_start):
 		hud.set_mode(build_mode, "TAP A DIFFERENT END STATION OR TRACK NODE")
 		return
-	var start_fallback: Vector2 = _get_lane_node_position(pending_curve_start_node, stations[pending_curve_start] if pending_curve_start >= 0 else Vector2.ZERO)
-	var curve_start := _get_lane_node_position(pending_curve_start_node, start_fallback)
+	var start_fallback: Vector2 = stations[pending_curve_start] if pending_curve_start >= 0 and pending_curve_start < stations.size() else Vector2.ZERO
+	start_fallback = _get_lane_node_position(pending_curve_start_node, start_fallback)
+	var curve_start := start_fallback
 	var curve_end := endpoint
 	var control := _constrain_curve_control(curve_start, pending_curve_control, curve_end)
 	var pair := _offset_parallel_curve(_make_curve_points(curve_start, control, curve_end), PARALLEL_CENTERLINE_SPACING * 0.5)
@@ -498,8 +499,8 @@ func _move_curve_handle(screen_position: Vector2) -> void:
 	var new_control := screen_to_world(screen_position)
 	if editing_parallel_curve_index >= 0 and editing_parallel_curve_index < parallel_curve_segments.size():
 		var parallel_curve: Dictionary = parallel_curve_segments[editing_parallel_curve_index]
-		var start_point: Vector2 = parallel_curve.get("start_point", stations[int(parallel_curve["start_station"])])
-		var end_point: Vector2 = parallel_curve.get("end_point", stations[int(parallel_curve["end_station"])])
+		var start_point: Vector2 = parallel_curve.get("start_point", Vector2.ZERO)
+		var end_point: Vector2 = parallel_curve.get("end_point", Vector2.ZERO)
 		var control := _constrain_curve_control(start_point, new_control, end_point)
 		var pair := _offset_parallel_curve(_make_curve_points(start_point, control, end_point), PARALLEL_CENTERLINE_SPACING * 0.5)
 		if pair.size() == 2 and pair[0].size() > 1 and pair[1].size() > 1:
@@ -519,8 +520,8 @@ func _move_curve_handle(screen_position: Vector2) -> void:
 		var curve: Dictionary = curve_segments[editing_curve_index]
 		curve["control"] = _constrain_curve_control(curve["start"], new_control, curve["end"])
 	else:
-		if pending_curve_start >= 0 and pending_curve_start < stations.size():
-			var start_fallback: Vector2 = stations[pending_curve_start]
+		if pending_curve_start_node >= 0 or (pending_curve_start >= 0 and pending_curve_start < stations.size()):
+			var start_fallback: Vector2 = stations[pending_curve_start] if pending_curve_start >= 0 and pending_curve_start < stations.size() else Vector2.ZERO
 			var start_point := _get_lane_node_position(pending_curve_start_node, start_fallback)
 			var preview_end := _get_curve_preview_endpoint()
 			pending_curve_control = _constrain_curve_control(start_point, new_control, preview_end)
@@ -1123,7 +1124,7 @@ func _get_curve_preview_endpoint() -> Vector2:
 	return get_snapped_world_position(center)
 
 func _draw_parallel_curve_preview() -> void:
-	var start_fallback: Vector2 = stations[pending_curve_start]
+	var start_fallback: Vector2 = stations[pending_curve_start] if pending_curve_start >= 0 and pending_curve_start < stations.size() else Vector2.ZERO
 	var start_point := _get_lane_node_position(pending_curve_start_node, start_fallback)
 	var end_point := _get_curve_preview_endpoint()
 	var control := _constrain_curve_control(start_point, pending_curve_control, end_point)
