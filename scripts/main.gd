@@ -1078,7 +1078,9 @@ func _draw_curve_preview() -> void:
 
 func _draw_track_preview() -> void:
 	var viewport_size := get_viewport_rect().size
-		var preview_start: Vector2 = stations[pending_track_start]
+	var preview_start: Vector2 = _get_lane_node_position(pending_track_start_node, stations[pending_track_start])
+	var preview_node_id := _find_lane_node_near_screen(viewport_size * 0.5) if build_mode == "track" else -1
+	var preview_end := _get_lane_node_position(preview_node_id, get_snapped_world_position(viewport_size * 0.5))
 	if build_mode == "parallel":
 		var direction := (preview_end - preview_start).normalized()
 		if direction != Vector2.ZERO:
