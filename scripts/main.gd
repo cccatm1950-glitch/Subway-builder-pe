@@ -933,24 +933,52 @@ func _get_station_track_directions(station_index: int) -> Array[Vector2]:
 				directions.append(direction)
 	return directions
 
-func _find_connected_track_tangent(station_point: Vector2, preferred_direction: Vector2, at_curve_end: bool) -> Vector2:
+func _find_connected_track_tangent(endpoint_position: Vector2, preferred_direction: Vector2, at_curve_end: bool) -> Vector2:
+	# Resolve the exact lane node first. Station-center matching breaks as soon
+	# as a curve is attached to an offset lane centerline.
+	var endpoint_node := -1
+	var closest_distance := 1.0
+	for node in lane_nodes:
+		var distance: float = Vector2(node.get("position", Vector2.ZERO)).distance_to(endpoint_position)
+		if distance <= closest_distance:
+			closest_distance = distance
+			endpoint_node = int(node.get("id", -1))
+	if endpoint_node < 0:
+		return Vector2.ZERO
+
 	var best_tangent := Vector2.ZERO
 	var best_alignment := -INF
 	for edge in track_edges:
-		var start_index := int(edge.get("start_station", -1))
-		var end_index := int(edge.get("end_station", -1))
-		if start_index < 0 or end_index < 0 or start_index >= stations.size() or end_index >= stations.size():
+		var is_start := int(edge.get("start_node", -1)) == endpoint_node
+		var is_end := int(edge.get("end_node", -1)) == endpoint_node
+		if not is_start and not is_end:
 			continue
-		if stations[start_index] != station_point and stations[end_index] != station_point:
-			continue
-		var start_point: Vector2 = edge.get("start_point", stations[start_index])
-		var end_point: Vector2 = edge.get("end_point", stations[end_index])
+		var start_point: Vector2 = edge.get("start_point", endpoint_position)
+		var end_point: Vector2 = edge.get("end_point", endpoint_position)
 		var tangent := (end_point - start_point).normalized()
+		# Offset curve edges have a sampled path; use its endpoint segment
+		# instead of the long endpoint chord to preserve the true local heading.
+		var group_id := int(edge.get("parallel_group", -1))
+		if group_id >= 0:
+			var lane_index := int(edge.get("lane_index", 0))
+			for segment in parallel_curve_segments:
+				if int(segment.get("group_id", -1)) != group_id:
+					continue
+				var paths: Array = segment.get("paths", [])
+				if lane_index >= 0 and lane_index < paths.size():
+					var path: PackedVector2Array = paths[lane_index]
+					if path.size() >= 2:
+						tangent = (path[1] - path[0]).normalized() if is_start else (path[path.size() - 2] - path[path.size() - 1]).normalized()
+				break
 		if tangent == Vector2.ZERO:
 			continue
-		if tangent.dot(preferred_direction) < 0.0:
+		# Orient the tangent away from the junction node. A curve's end
+		# tangent points toward its endpoint, so reverse it for comparison.
+		if not is_start:
 			tangent = -tangent
-		var alignment := tangent.dot(preferred_direction)
+		if at_curve_end:
+			tangent = -tangent
+		var alignment := tangent.dot(preferred_direction.normalized())
 		if alignment > best_alignment:
 			best_alignment = alignment
 			best_tangent = tangent
