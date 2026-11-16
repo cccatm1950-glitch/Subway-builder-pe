@@ -9,6 +9,7 @@ signal parallel_curve_mode_requested
 signal curve_mode_requested
 signal waypoint_mode_requested
 signal cancel_build_requested
+signal map_input_event(event: InputEvent)
 
 var coordinate_label: Label
 var hint_label: Label
@@ -23,7 +24,7 @@ var debug_status_text := "WAITING FOR TOUCH"
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	mouse_filter = Control.MOUSE_FILTER_STOP
 
 	var title := Label.new()
 	title.text = "SUBWAY BUILDER"
@@ -31,6 +32,7 @@ func _ready() -> void:
 	title.size = Vector2(360, 42)
 	title.add_theme_color_override("font_color", Color(0.91, 0.97, 1.0))
 	title.add_theme_font_size_override("font_size", 24)
+	title.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(title)
 
 	input_status_label = Label.new()
@@ -38,6 +40,7 @@ func _ready() -> void:
 	input_status_label.size = Vector2(420, 22)
 	input_status_label.add_theme_color_override("font_color", Color(0.55, 0.68, 0.72))
 	input_status_label.add_theme_font_size_override("font_size", 11)
+	input_status_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(input_status_label)
 
 	coordinate_label = Label.new()
@@ -45,6 +48,7 @@ func _ready() -> void:
 	coordinate_label.size = Vector2(420, 30)
 	coordinate_label.add_theme_color_override("font_color", Color(0.35, 0.83, 0.79))
 	coordinate_label.add_theme_font_size_override("font_size", 14)
+	coordinate_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(coordinate_label)
 
 	hint_label = Label.new()
@@ -60,6 +64,7 @@ func _ready() -> void:
 	hint_label.offset_bottom = -24
 	hint_label.add_theme_color_override("font_color", Color(0.64, 0.74, 0.79))
 	hint_label.add_theme_font_size_override("font_size", 13)
+	hint_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(hint_label)
 
 	station_button = _make_action_button("STATION")
@@ -160,6 +165,11 @@ func _ready() -> void:
 	zoom_out.offset_bottom = -36
 	zoom_out.pressed.connect(func(): zoom_out_requested.emit())
 	add_child(zoom_out)
+
+func _gui_input(event: InputEvent) -> void:
+	if event is InputEventScreenTouch or event is InputEventScreenDrag:
+		map_input_event.emit(event)
+		accept_event()
 
 func _make_action_button(caption: String) -> Button:
 	var button := _make_zoom_button(caption)
