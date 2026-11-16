@@ -645,7 +645,9 @@ func _register_lane_edge(edge_id: int, start_node: int, end_node: int) -> void:
 func _add_track_edge(start_station: int, end_station: int, start_point: Vector2, end_point: Vector2, kind: String, parallel_group: int, lane_index: int, lane_count: int, spacing: float) -> void:
 	var draw_start := start_point
 	var draw_end := end_point
-	if kind == "single":
+	# Explicit lane-node connections already identify their exact centerline
+	# endpoints. Do not let the legacy station-level merge heuristic move them.
+	if kind == "single" and start_point.distance_to(stations[start_station]) <= 0.5 and end_point.distance_to(stations[end_station]) <= 0.5:
 		var merge_data := _build_parallel_merge_transition(start_station, end_station, start_point, end_point)
 		if not merge_data.is_empty():
 			draw_start = merge_data["draw_start"]
