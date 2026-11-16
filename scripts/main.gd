@@ -370,7 +370,11 @@ func _handle_parallel_curve_tap(screen_position: Vector2) -> void:
 		if start_outgoing == Vector2.ZERO:
 			start_outgoing = (path[0] - start_anchor_position).normalized()
 		var start_transition := _make_junction_transition(start_anchor_position, path[0], start_outgoing, start_path_tangent)
-		if start_transition.size() > 1 and int(start_anchor["node_id"]) != start_node:
+		var start_anchor_is_shared := int(start_anchor_nodes[0]["node_id"]) == int(start_anchor_nodes[1]["node_id"])
+		# A single-track endpoint cannot be used as the anchor for both lanes.
+		# Keep one turnout connection only; the duplicate lane must not draw a
+		# second overlapping connector from the same graph node.
+		if start_transition.size() > 1 and int(start_anchor["node_id"]) != start_node and (not start_anchor_is_shared or lane == 0):
 			var start_transition_index := junction_transition_paths.size()
 			junction_transition_paths.append(start_transition)
 			parallel_curve_segments[parallel_curve_segments.size() - 1]["transition_path_indices"][lane][0] = start_transition_index
@@ -383,7 +387,8 @@ func _handle_parallel_curve_tap(screen_position: Vector2) -> void:
 		if end_incoming == Vector2.ZERO:
 			end_incoming = (end_anchor_position - path[path.size() - 1]).normalized()
 		var end_transition := _make_junction_transition(path[path.size() - 1], end_anchor_position, end_path_tangent, end_incoming)
-		if end_transition.size() > 1 and int(end_anchor["node_id"]) != end_node:
+		var end_anchor_is_shared := int(end_anchor_nodes[0]["node_id"]) == int(end_anchor_nodes[1]["node_id"])
+		if end_transition.size() > 1 and int(end_anchor["node_id"]) != end_node and (not end_anchor_is_shared or lane == 0):
 			var end_transition_index := junction_transition_paths.size()
 			junction_transition_paths.append(end_transition)
 			parallel_curve_segments[parallel_curve_segments.size() - 1]["transition_path_indices"][lane][1] = end_transition_index
