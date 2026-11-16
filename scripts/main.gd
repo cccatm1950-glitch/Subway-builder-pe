@@ -457,7 +457,7 @@ func _build_parallel_merge_transition(start_station: int, end_station: int, star
 	# same direction as an existing parallel pair. A perpendicular or opposing
 	# connection is a branch/junction, not a merge, and must remain independent.
 	var selected_group := -1
-	var best_alignment := 0.72
+	var best_alignment := -1.0
 	for edge in track_edges:
 		var group_id := int(edge.get("parallel_group", -1))
 		if group_id < 0:
@@ -493,28 +493,53 @@ func _build_parallel_merge_transition(start_station: int, end_station: int, star
 
 	var original_merge_point := stations[merge_station]
 	var single_length := start_point.distance_to(end_point)
-	# Give both lanes enough room to converge gradually while reserving a
-	# meaningful straight section after the merge.
-	var merge_length := minf(PARALLEL_CENTERLINE_SPACING * 4.0, single_length * 0.58)
-	if merge_length < PARALLEL_CENTERLINE_SPACING * 1.25:
+	var merge_length := minf(PARALLEL_CENTERLINE_SPACING * 3.5, single_length * 0.42)
+	if merge_length < PARALLEL_CENTERLINE_SPACING * 0.9:
 		return {}
 	var merge_point := original_merge_point + outward_direction * merge_length
 	var normal := Vector2(-outward_direction.y, outward_direction.x)
 	var paths: Array[PackedVector2Array] = []
-	for lane_point in lane_endpoints:
-		var lateral_offset := (lane_point - original_merge_point).dot(normal)
-		var path := PackedVector2Array()
-		# The first control preserves the lane's initial direction. The second
-		# retains a small fraction of its lateral offset, then eases to a shared
-		# merge point with a tangent aligned to the outgoing single track.
-		var first_control := lane_point + outward_direction * (merge_length * 0.38)
-		var second_control := merge_point - outward_direction * (merge_length * 0.24) + normal * (lateral_offset * 0.22)
-		for step in range(31):
-			var t := float(step) / 30.0
+
+	if best_alignment < 0.72:
+		# Diverging connection: preserve the unselected parallel lane and
+		# create one turnout from the lane on the side of the outgoing route.
+		var side := outward_direction.dot(normal)
+		var selected_lane := 0 if side >= 0.0 else 1
+		var lane_point: Vector2 = lane_endpoints[selected_lane]
+		var neighbor_direction := Vector2.ZERO
+		for edge in track_edges:
+			if int(edge.get("parallel_group", -1)) != selected_group:
+				continue
+			var edge_start := int(edge.get("start_station", -1))
+			var edge_end := int(edge.get("end_station", -1))
+			var neighbor := edge_end if edge_start == merge_station else edge_start
+			if neighbor >= 0 and neighbor < stations.size():
+				neighbor_direction = (stations[merge_station] - stations[neighbor]).normalized()
+				break
+		if neighbor_direction == Vector2.ZERO:
+			return {}
+		var switch_length := minf(merge_length, lane_point.distance_to(merge_point) + merge_length * 0.35)
+		var switch_end := merge_point
+		var first_control := lane_point + neighbor_direction * (switch_length * 0.34)
+		var second_control := switch_end - outward_direction * (switch_length * 0.34)
+		var turnout := PackedVector2Array()
+		for step in range(41):
+			var t := float(step) / 40.0
 			var u := 1.0 - t
-			var point := u * u * u * lane_point + 3.0 * u * u * t * first_control + 3.0 * u * t * t * second_control + t * t * t * merge_point
-			path.append(point)
-		paths.append(path)
+			turnout.append(u * u * u * lane_point + 3.0 * u * u * t * first_control + 3.0 * u * t * t * second_control + t * t * t * switch_end)
+		paths.append(turnout)
+	else:
+		# Parallel-to-single merge: both lanes converge symmetrically.
+		for lane_point in lane_endpoints:
+			var lateral_offset := (lane_point - original_merge_point).dot(normal)
+			var path := PackedVector2Array()
+			var first_control := lane_point + outward_direction * (merge_length * 0.38)
+			var second_control := merge_point - outward_direction * (merge_length * 0.24) + normal * (lateral_offset * 0.22)
+			for step in range(31):
+				var t := float(step) / 30.0
+				var u := 1.0 - t
+				path.append(u * u * u * lane_point + 3.0 * u * u * t * first_control + 3.0 * u * t * t * second_control + t * t * t * merge_point)
+			paths.append(path)
 	if toward_end:
 		return {"draw_start": merge_point, "draw_end": end_point, "paths": paths}
 	return {"draw_start": start_point, "draw_end": merge_point, "paths": paths}
