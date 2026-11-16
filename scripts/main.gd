@@ -209,10 +209,12 @@ func _handle_map_tap(_screen_position: Vector2) -> void:
 			station_index = _find_station_near_screen(crosshair_screen)
 			if station_index >= 0:
 				target_position = stations[station_index]
+				if build_mode == "track":
+					lane_node_id = _get_or_create_lane_node(target_position, station_index, 0, -1)
 		if station_index == -1 and lane_node_id < 0:
 			hud.set_mode(build_mode, "ALIGN CROSSHAIR WITH A STATION, LANE NODE OR WAYPOINT")
 			return
-		if pending_track_start == -1:
+		if pending_track_start_node < 0:
 			pending_track_start = station_index
 			pending_track_start_node = lane_node_id
 			pending_track_start_position = target_position
@@ -388,6 +390,8 @@ func _handle_curve_tap(screen_position: Vector2) -> void:
 
 func _handle_parallel_curve_tap(screen_position: Vector2) -> void:
 	var lane_node_id := _find_lane_node_near_screen(screen_position)
+	if lane_node_id < 0:
+		lane_node_id = _find_waypoint_node_near_screen(screen_position)
 	var station_index := -1
 	var endpoint := get_snapped_world_position(screen_position)
 	if lane_node_id >= 0:
@@ -399,11 +403,12 @@ func _handle_parallel_curve_tap(screen_position: Vector2) -> void:
 		if station_index >= 0:
 			endpoint = stations[station_index]
 	if curve_stage == 0:
-		if station_index < 0:
-			hud.set_mode(build_mode, "SELECT A START STATION OR LANE NODE")
+		if station_index < 0 and lane_node_id < 0:
+			hud.set_mode(build_mode, "SELECT A START STATION, LANE NODE OR WAYPOINT")
 			return
 		pending_curve_start = station_index
 		pending_curve_start_node = lane_node_id
+		pending_curve_start_position = endpoint
 		curve_stage = 1
 		var start_screen: Vector2 = get_viewport().get_canvas_transform() * endpoint
 		var center := get_viewport_rect().size * 0.5
@@ -415,7 +420,7 @@ func _handle_parallel_curve_tap(screen_position: Vector2) -> void:
 		hud.set_mode(build_mode, "DRAG SHARED HANDLE  ·  TAP END NODE")
 		queue_redraw()
 		return
-	if station_index < 0 or (station_index == pending_curve_start and lane_node_id == pending_curve_start_node):
+	if (station_index < 0 and lane_node_id < 0) or (lane_node_id >= 0 and lane_node_id == pending_curve_start_node):
 		hud.set_mode(build_mode, "TAP A DIFFERENT END STATION OR LANE NODE")
 		return
 	var curve_start := _get_lane_node_position(pending_curve_start_node, pending_curve_start_position)
@@ -1147,6 +1152,8 @@ func _draw_completed_curve_handle(curve: Dictionary, is_being_edited: bool) -> v
 func _get_curve_preview_endpoint() -> Vector2:
 	var center := get_viewport_rect().size * 0.5
 	var node_id := _find_lane_node_near_screen(center)
+	if node_id < 0:
+		node_id = _find_waypoint_node_near_screen(center)
 	if node_id >= 0:
 		return _get_lane_node_position(node_id, get_snapped_world_position(center))
 	var station_index := _find_station_near_screen(center)
@@ -1184,6 +1191,8 @@ func _draw_track_preview() -> void:
 	var viewport_size := get_viewport_rect().size
 	var preview_start: Vector2 = _get_lane_node_position(pending_track_start_node, pending_track_start_position)
 	var preview_node_id := _find_lane_node_near_screen(viewport_size * 0.5) if build_mode == "track" else -1
+	if build_mode == "track" and preview_node_id < 0:
+		preview_node_id = _find_waypoint_node_near_screen(viewport_size * 0.5)
 	var preview_end := _get_lane_node_position(preview_node_id, get_snapped_world_position(viewport_size * 0.5))
 	if build_mode == "parallel":
 		var direction := (preview_end - preview_start).normalized()
