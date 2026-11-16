@@ -566,18 +566,18 @@ func _build_parallel_merge_transition(start_station: int, end_station: int, star
 			selected_group = group_id
 	if selected_group < 0:
 		return {}
+	# Resolve lanes in their explicit lane_index order. Never rely on the
+	# incidental order in which track_edges were appended; that can swap the
+	# inner and outer lane when a pair is connected in the reverse direction.
 	var lane_endpoints: Array[Vector2] = []
-	for edge in track_edges:
-		if int(edge.get("parallel_group", -1)) != selected_group:
-			continue
+	var ordered_lanes := _get_parallel_group_lanes(selected_group)
+	for edge in ordered_lanes:
 		if int(edge.get("start_station", -1)) == merge_station:
 			lane_endpoints.append(edge.get("start_point", stations[merge_station]))
 		elif int(edge.get("end_station", -1)) == merge_station:
 			lane_endpoints.append(edge.get("end_point", stations[merge_station]))
-	if lane_endpoints.size() < 2:
+	if lane_endpoints.size() != 2:
 		return {}
-	if lane_endpoints.size() > 2:
-		lane_endpoints.resize(2)
 
 	var original_merge_point := stations[merge_station]
 	var single_length := start_point.distance_to(end_point)
