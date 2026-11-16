@@ -342,7 +342,14 @@ func _handle_parallel_curve_tap(screen_position: Vector2) -> void:
 	start_anchor_nodes = _resolve_parallel_curve_anchor_nodes(pending_curve_start, pending_curve_start_node, pair, true)
 	end_anchor_nodes = _resolve_parallel_curve_anchor_nodes(station_index, lane_node_id, pair, false)
 	var group_id := next_track_edge_id
-	parallel_curve_segments.append({"paths": pair, "start_station": pending_curve_start, "end_station": station_index, "start_point": curve_start, "end_point": curve_end, "start_node": pending_curve_start_node, "end_node": lane_node_id, "control": control, "group_id": group_id})
+	var start_anchor_positions: Array[Vector2] = []
+	var end_anchor_positions: Array[Vector2] = []
+	var transition_path_indices: Array = []
+	for lane in range(2):
+		start_anchor_positions.append(Vector2(start_anchor_nodes[lane]["position"]))
+		end_anchor_positions.append(Vector2(end_anchor_nodes[lane]["position"]))
+		transition_path_indices.append([-1, -1])
+	parallel_curve_segments.append({"paths": pair, "start_station": pending_curve_start, "end_station": station_index, "start_point": curve_start, "end_point": curve_end, "start_node": pending_curve_start_node, "end_node": lane_node_id, "control": control, "group_id": group_id, "start_anchor_positions": start_anchor_positions, "end_anchor_positions": end_anchor_positions, "transition_path_indices": transition_path_indices})
 	for lane in range(2):
 		var path: PackedVector2Array = pair[lane]
 		var start_anchor: Dictionary = start_anchor_nodes[lane]
@@ -364,8 +371,10 @@ func _handle_parallel_curve_tap(screen_position: Vector2) -> void:
 			start_outgoing = (path[0] - start_anchor_position).normalized()
 		var start_transition := _make_junction_transition(start_anchor_position, path[0], start_outgoing, start_path_tangent)
 		if start_transition.size() > 1 and int(start_anchor["node_id"]) != start_node:
+			var start_transition_index := junction_transition_paths.size()
 			junction_transition_paths.append(start_transition)
-			track_edges.append({"id": next_track_edge_id, "start_node": int(start_anchor["node_id"]), "end_node": start_node, "start_station": pending_curve_start, "end_station": pending_curve_start, "start_point": start_anchor_position, "end_point": path[0], "kind": "transition", "parallel_group": -1, "lane_index": lane, "lane_count": 1, "centerline_spacing": 0.0})
+			parallel_curve_segments[parallel_curve_segments.size() - 1]["transition_path_indices"][lane][0] = start_transition_index
+			track_edges.append({"id": next_track_edge_id, "start_node": int(start_anchor["node_id"]), "end_node": start_node, "start_station": pending_curve_start, "end_station": pending_curve_start, "start_point": start_anchor_position, "end_point": path[0], "kind": "transition", "parallel_group": -1, "curve_group_id": group_id, "transition_side": "start", "lane_index": lane, "lane_count": 1, "centerline_spacing": 0.0})
 			_register_lane_edge(next_track_edge_id, int(start_anchor["node_id"]), start_node)
 			next_track_edge_id += 1
 
@@ -375,8 +384,10 @@ func _handle_parallel_curve_tap(screen_position: Vector2) -> void:
 			end_incoming = (end_anchor_position - path[path.size() - 1]).normalized()
 		var end_transition := _make_junction_transition(path[path.size() - 1], end_anchor_position, end_path_tangent, end_incoming)
 		if end_transition.size() > 1 and int(end_anchor["node_id"]) != end_node:
+			var end_transition_index := junction_transition_paths.size()
 			junction_transition_paths.append(end_transition)
-			track_edges.append({"id": next_track_edge_id, "start_node": end_node, "end_node": int(end_anchor["node_id"]), "start_station": station_index, "end_station": station_index, "start_point": path[path.size() - 1], "end_point": end_anchor_position, "kind": "transition", "parallel_group": -1, "lane_index": lane, "lane_count": 1, "centerline_spacing": 0.0})
+			parallel_curve_segments[parallel_curve_segments.size() - 1]["transition_path_indices"][lane][1] = end_transition_index
+			track_edges.append({"id": next_track_edge_id, "start_node": end_node, "end_node": int(end_anchor["node_id"]), "start_station": station_index, "end_station": station_index, "start_point": path[path.size() - 1], "end_point": end_anchor_position, "kind": "transition", "parallel_group": -1, "curve_group_id": group_id, "transition_side": "end", "lane_index": lane, "lane_count": 1, "centerline_spacing": 0.0})
 			_register_lane_edge(next_track_edge_id, end_node, int(end_anchor["node_id"]))
 			next_track_edge_id += 1
 	pending_curve_start = -1
@@ -561,6 +572,40 @@ func _move_curve_handle(screen_position: Vector2) -> void:
 					track_edges[edge_index]["end_point"] = end_position
 					_set_lane_node_position(int(track_edges[edge_index].get("start_node", -1)), start_position)
 					_set_lane_node_position(int(track_edges[edge_index].get("end_node", -1)), end_position)
+			# The transition curves must move with the edited offset lanes. Keeping
+			# their original samples leaves gaps and stale connector strokes.
+			var start_anchor_positions: Array = parallel_curve.get("start_anchor_positions", [])
+			var end_anchor_positions: Array = parallel_curve.get("end_anchor_positions", [])
+			var transition_indices: Array = parallel_curve.get("transition_path_indices", [])
+			for lane in range(2):
+				if lane >= start_anchor_positions.size() or lane >= end_anchor_positions.size() or lane >= transition_indices.size():
+					continue
+				var path: PackedVector2Array = pair[lane]
+				var start_anchor_position: Vector2 = start_anchor_positions[lane]
+				var end_anchor_position: Vector2 = end_anchor_positions[lane]
+				var start_tangent := (path[1] - path[0]).normalized()
+				var end_tangent := (path[path.size() - 1] - path[path.size() - 2]).normalized()
+				var start_outgoing := _find_connected_track_tangent(start_anchor_position, start_tangent, false)
+				if start_outgoing == Vector2.ZERO:
+					start_outgoing = (path[0] - start_anchor_position).normalized()
+				var end_incoming := _find_connected_track_tangent(end_anchor_position, end_tangent, true)
+				if end_incoming == Vector2.ZERO:
+					end_incoming = (end_anchor_position - path[path.size() - 1]).normalized()
+				var indices: Array = transition_indices[lane]
+				if indices.size() >= 2:
+					var start_index := int(indices[0])
+					var end_index := int(indices[1])
+					if start_index >= 0 and start_index < junction_transition_paths.size():
+						junction_transition_paths[start_index] = _make_junction_transition(start_anchor_position, path[0], start_outgoing, start_tangent)
+					if end_index >= 0 and end_index < junction_transition_paths.size():
+						junction_transition_paths[end_index] = _make_junction_transition(path[path.size() - 1], end_anchor_position, end_tangent, end_incoming)
+				for transition_edge in track_edges:
+					if int(transition_edge.get("curve_group_id", -1)) != group_id or int(transition_edge.get("lane_index", -1)) != lane:
+						continue
+					if String(transition_edge.get("transition_side", "")) == "start":
+						transition_edge["end_point"] = path[0]
+					else:
+						transition_edge["start_point"] = path[path.size() - 1]
 	elif editing_curve_index >= 0 and editing_curve_index < curve_segments.size():
 		var curve: Dictionary = curve_segments[editing_curve_index]
 		curve["control"] = _constrain_curve_control(curve["start"], new_control, curve["end"])
@@ -1001,7 +1046,7 @@ func _find_connected_track_tangent(endpoint_position: Vector2, preferred_directi
 		# drawn) as the reference tangent. Straight and parallel approaches
 		# define the turnout alignment; otherwise curve geometry can become
 		# dependent on the order in which additional edges are added.
-		if String(edge.get("kind", "")) == "curve":
+		if String(edge.get("kind", "")) == "curve" or String(edge.get("kind", "")) == "transition":
 			continue
 		var is_start := int(edge.get("start_node", -1)) == endpoint_node
 		var is_end := int(edge.get("end_node", -1)) == endpoint_node
