@@ -223,10 +223,7 @@ func _handle_map_tap(_screen_position: Vector2) -> void:
 			var start_station := pending_track_start
 			var start_position := pending_track_start_position
 			if build_mode == "parallel":
-				if start_station >= 0 and station_index >= 0:
-					_add_parallel_track_pair(start_station, station_index)
-				else:
-					hud.set_mode(build_mode, "PARALLEL TRACKS CURRENTLY REQUIRE STATION ENDPOINTS")
+				_add_parallel_track_pair_from_anchors(start_station, station_index, pending_track_start_position, target_position, pending_track_start_node, lane_node_id)
 			else:
 				_add_track_edge(start_station, station_index, start_position, target_position, "single", -1, 0, 1, 0.0)
 			pending_track_start = -1
@@ -893,6 +890,42 @@ func _build_parallel_merge_transition(start_station: int, end_station: int, star
 	if toward_end:
 		return {"draw_start": merge_point, "draw_end": end_point, "paths": paths}
 	return {"draw_start": start_point, "draw_end": merge_point, "paths": paths}
+
+func _add_parallel_track_pair_from_anchors(start_station: int, end_station: int, start_position: Vector2, end_position: Vector2, start_anchor_node: int, end_anchor_node: int) -> void:
+	var direction := (end_position - start_position).normalized()
+	if direction == Vector2.ZERO:
+		hud.set_mode(build_mode, "CHOOSE TWO DIFFERENT CONNECTION NODES")
+		return
+	var normal := Vector2(-direction.y, direction.x)
+	var half_spacing := PARALLEL_CENTERLINE_SPACING * 0.5
+	var group_id := next_track_edge_id
+	var lane_starts: Array[Vector2] = [start_position + normal * half_spacing, start_position - normal * half_spacing]
+	var lane_ends: Array[Vector2] = [end_position + normal * half_spacing, end_position - normal * half_spacing]
+	var start_node := start_anchor_node
+	if start_node < 0:
+		start_node = _get_or_create_lane_node(start_position, start_station, 0, -1)
+	var end_node := end_anchor_node
+	if end_node < 0:
+		end_node = _get_or_create_lane_node(end_position, end_station, 0, -1)
+	for lane in range(2):
+		var lane_start := _get_or_create_lane_node(lane_starts[lane], start_station, lane, group_id)
+		var lane_end := _get_or_create_lane_node(lane_ends[lane], end_station, lane, group_id)
+		track_edges.append({"id": next_track_edge_id, "start_node": lane_start, "end_node": lane_end, "start_station": start_station, "end_station": end_station, "start_point": lane_starts[lane], "end_point": lane_ends[lane], "kind": "parallel", "parallel_group": group_id, "lane_index": lane, "lane_count": 2, "centerline_spacing": PARALLEL_CENTERLINE_SPACING})
+		_register_lane_edge(next_track_edge_id, lane_start, lane_end)
+		next_track_edge_id += 1
+		var start_connector := PackedVector2Array([start_position, lane_starts[lane]])
+		var end_connector := PackedVector2Array([lane_ends[lane], end_position])
+		if start_connector.size() > 1 and start_node != lane_start:
+			junction_transition_paths.append(start_connector)
+			track_edges.append({"id": next_track_edge_id, "start_node": start_node, "end_node": lane_start, "start_station": start_station, "end_station": start_station, "start_point": start_position, "end_point": lane_starts[lane], "kind": "transition", "parallel_group": -1, "lane_index": lane, "lane_count": 1, "centerline_spacing": 0.0})
+			_register_lane_edge(next_track_edge_id, start_node, lane_start)
+			next_track_edge_id += 1
+		if end_connector.size() > 1 and end_node != lane_end:
+			junction_transition_paths.append(end_connector)
+			track_edges.append({"id": next_track_edge_id, "start_node": lane_end, "end_node": end_node, "start_station": end_station, "end_station": end_station, "start_point": lane_ends[lane], "end_point": end_position, "kind": "transition", "parallel_group": -1, "lane_index": lane, "lane_count": 1, "centerline_spacing": 0.0})
+			_register_lane_edge(next_track_edge_id, lane_end, end_node)
+			next_track_edge_id += 1
+	queue_redraw()
 
 func _add_parallel_track_pair(start_station: int, end_station: int) -> void:
 	var start_point: Vector2 = stations[start_station]
