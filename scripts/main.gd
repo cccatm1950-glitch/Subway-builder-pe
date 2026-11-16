@@ -1031,6 +1031,8 @@ func _find_connected_track_tangent(endpoint_position: Vector2, preferred_directi
 	return best_tangent
 
 func _select_waypoint_mode() -> void:
+	pending_track_start_node = -1
+	pending_track_start_position = Vector2.ZERO
 	build_mode = "" if build_mode == "waypoint" else "waypoint"
 	pending_track_start = -1
 	pending_curve_start = -1
@@ -1042,6 +1044,8 @@ func _select_waypoint_mode() -> void:
 
 
 func _select_curve_mode() -> void:
+	pending_track_start_node = -1
+	pending_track_start_position = Vector2.ZERO
 	build_mode = "" if build_mode == "curve" else "curve"
 	curve_handle_dragging = false
 	curve_handle_touch_index = -1
@@ -1088,6 +1092,8 @@ func _find_station_near_screen(screen_position: Vector2) -> int:
 	return nearest_index
 
 func _select_station_mode() -> void:
+	pending_track_start_node = -1
+	pending_track_start_position = Vector2.ZERO
 	build_mode = "" if build_mode == "station" else "station"
 	pending_track_start = -1
 	pending_curve_start = -1
@@ -1095,6 +1101,8 @@ func _select_station_mode() -> void:
 	hud.set_mode(build_mode, "TAP TO PLACE STATIONS  ·  DRAG TO MOVE MAP" if build_mode == "station" else "DRAG TO MOVE  ·  PINCH TO ZOOM")
 
 func _select_track_mode() -> void:
+	pending_track_start_node = -1
+	pending_track_start_position = Vector2.ZERO
 	build_mode = "" if build_mode == "track" else "track"
 	pending_track_start = -1
 	pending_curve_start = -1
@@ -1102,6 +1110,8 @@ func _select_track_mode() -> void:
 	hud.set_mode(build_mode, "TAP TWO STATIONS, WAYPOINTS OR LANE NODES TO CONNECT ONE TRACK" if build_mode == "track" else "DRAG TO MOVE  ·  PINCH TO ZOOM")
 
 func _select_parallel_mode() -> void:
+	pending_track_start_node = -1
+	pending_track_start_position = Vector2.ZERO
 	build_mode = "" if build_mode == "parallel" else "parallel"
 	pending_track_start = -1
 	pending_curve_start = -1
@@ -1109,6 +1119,8 @@ func _select_parallel_mode() -> void:
 	hud.set_mode(build_mode, "TAP TWO STATIONS TO PLACE STRAIGHT PARALLEL TRACKS" if build_mode == "parallel" else "DRAG TO MOVE  ·  PINCH TO ZOOM")
 
 func _select_parallel_curve_mode() -> void:
+	pending_track_start_node = -1
+	pending_track_start_position = Vector2.ZERO
 	build_mode = "" if build_mode == "parallel_curve" else "parallel_curve"
 	pending_track_start = -1
 	pending_curve_start = -1
@@ -1138,7 +1150,7 @@ func _draw() -> void:
 	for index in range(0, track_segments.size(), 2):
 		if index + 1 < track_segments.size():
 			draw_line(track_segments[index], track_segments[index + 1], Color(0.24, 0.86, 0.78), 7.0, true)
-	if (build_mode == "track" or build_mode == "parallel") and pending_track_start >= 0 and pending_track_start < stations.size():
+	if (build_mode == "track" or build_mode == "parallel") and (pending_track_start >= 0 or pending_track_start_node >= 0):
 		_draw_track_preview()
 	if build_mode == "curve" and pending_curve_start >= 0 and pending_curve_start < stations.size():
 		_draw_curve_preview()
@@ -1218,7 +1230,7 @@ func _draw_curve_preview() -> void:
 
 func _draw_track_preview() -> void:
 	var viewport_size := get_viewport_rect().size
-	var preview_start: Vector2 = _get_lane_node_position(pending_track_start_node, stations[pending_track_start])
+	var preview_start: Vector2 = pending_track_start_position
 	var preview_node_id := _find_lane_node_near_screen(viewport_size * 0.5) if build_mode == "track" else -1
 	var preview_end := _get_lane_node_position(preview_node_id, get_snapped_world_position(viewport_size * 0.5))
 	if build_mode == "parallel":
