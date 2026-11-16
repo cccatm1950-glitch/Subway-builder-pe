@@ -9,7 +9,6 @@ signal parallel_curve_mode_requested
 signal curve_mode_requested
 signal waypoint_mode_requested
 signal cancel_build_requested
-signal map_input_event(event: InputEvent)
 
 var coordinate_label: Label
 var hint_label: Label
@@ -20,11 +19,10 @@ var parallel_curve_button: Button
 var curve_button: Button
 var waypoint_button: Button
 var input_status_label: Label
-var debug_status_text := "WAITING FOR TOUCH"
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	mouse_filter = Control.MOUSE_FILTER_STOP
+	mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 	var title := Label.new()
 	title.text = "SUBWAY BUILDER"
@@ -32,7 +30,6 @@ func _ready() -> void:
 	title.size = Vector2(360, 42)
 	title.add_theme_color_override("font_color", Color(0.91, 0.97, 1.0))
 	title.add_theme_font_size_override("font_size", 24)
-	title.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(title)
 
 	input_status_label = Label.new()
@@ -40,7 +37,6 @@ func _ready() -> void:
 	input_status_label.size = Vector2(420, 22)
 	input_status_label.add_theme_color_override("font_color", Color(0.55, 0.68, 0.72))
 	input_status_label.add_theme_font_size_override("font_size", 11)
-	input_status_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(input_status_label)
 
 	coordinate_label = Label.new()
@@ -48,7 +44,6 @@ func _ready() -> void:
 	coordinate_label.size = Vector2(420, 30)
 	coordinate_label.add_theme_color_override("font_color", Color(0.35, 0.83, 0.79))
 	coordinate_label.add_theme_font_size_override("font_size", 14)
-	coordinate_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(coordinate_label)
 
 	hint_label = Label.new()
@@ -64,7 +59,6 @@ func _ready() -> void:
 	hint_label.offset_bottom = -24
 	hint_label.add_theme_color_override("font_color", Color(0.64, 0.74, 0.79))
 	hint_label.add_theme_font_size_override("font_size", 13)
-	hint_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(hint_label)
 
 	station_button = _make_action_button("STATION")
@@ -166,11 +160,6 @@ func _ready() -> void:
 	zoom_out.pressed.connect(func(): zoom_out_requested.emit())
 	add_child(zoom_out)
 
-func _gui_input(event: InputEvent) -> void:
-	if event is InputEventScreenTouch or event is InputEventScreenDrag:
-		map_input_event.emit(event)
-		accept_event()
-
 func _make_action_button(caption: String) -> Button:
 	var button := _make_zoom_button(caption)
 	button.add_theme_font_size_override("font_size", 14)
@@ -206,10 +195,8 @@ func is_ui_position(screen_position: Vector2) -> bool:
 	return false
 
 func set_input_status(message: String) -> void:
-	debug_status_text = message
 	if is_instance_valid(input_status_label):
 		input_status_label.text = message
-	queue_redraw()
 
 func set_map_coordinates(position: Vector2) -> void:
 	if is_instance_valid(coordinate_label):
@@ -225,10 +212,6 @@ func set_mode(mode: String, message: String) -> void:
 	waypoint_button.modulate = Color(1, 1, 1, 1) if mode == "waypoint" else Color(0.72, 0.82, 0.86, 0.85)
 
 func _draw() -> void:
-	var status_rect := Rect2(Vector2(18, 118), Vector2(minf(size.x - 36.0, 430.0), 34.0))
-	draw_rect(status_rect, Color(0.015, 0.035, 0.045, 0.94), true)
-	draw_rect(status_rect, Color(0.20, 0.72, 0.70, 0.95), false, 1.0)
-	draw_string(ThemeDB.fallback_font, status_rect.position + Vector2(10, 23), debug_status_text, HORIZONTAL_ALIGNMENT_LEFT, status_rect.size.x - 20, 15, Color(0.72, 1.0, 0.96, 1.0))
 	var center := size * 0.5
 	var color := Color(0.88, 0.96, 1.0, 0.92)
 	draw_line(center + Vector2(-15, 0), center + Vector2(-5, 0), color, 2.0, true)
