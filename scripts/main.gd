@@ -137,17 +137,12 @@ func _handle_screen_drag(event: InputEventScreenDrag) -> void:
 		return
 	if not active_touches.has(event.index):
 		return
-	# Use the change from the previous stored touch position rather than
-	# InputEventScreenDrag.relative, which can be zero on some Android devices.
-	var previous_position: Vector2 = active_touches[event.index]
-	var drag_delta := event.position - previous_position
 	active_touches[event.index] = event.position
 	var start: Vector2 = touch_starts.get(event.index, event.position)
 	if event.position.distance_to(start) > TAP_DRAG_THRESHOLD:
 		touch_moved[event.index] = true
 	if active_touches.size() == 1:
-		if drag_delta.length_squared() > 0.0:
-			_pan_camera(drag_delta)
+		_pan_camera(event.relative)
 		hud.set_input_status("MAP DRAG")
 	elif active_touches.size() >= 2:
 		_update_pinch_zoom()
