@@ -49,6 +49,7 @@ func _ready() -> void:
 	hud.parallel_mode_requested.connect(_select_parallel_mode)
 	hud.parallel_curve_mode_requested.connect(_select_parallel_curve_mode)
 	hud.curve_mode_requested.connect(_select_curve_mode)
+	hud.waypoint_mode_requested.connect(_select_waypoint_mode)
 	_update_coordinate_readout()
 	hud.set_input_status("INPUT READY")
 
@@ -735,6 +736,16 @@ func _find_connected_track_tangent(station_point: Vector2, preferred_direction: 
 	if best_alignment < 0.15:
 		return Vector2.ZERO
 	return best_tangent
+
+func _select_waypoint_mode() -> void:
+	build_mode = "" if build_mode == "waypoint" else "waypoint"
+	pending_track_start = -1
+	pending_curve_start = -1
+	pending_waypoints.clear()
+	curve_stage = 0
+	hud.set_mode(build_mode, "SELECT START STATION  ·  TAP MAP FOR WAYPOINTS  ·  TAP END STATION" if build_mode == "waypoint" else "DRAG TO MOVE  ·  PINCH TO ZOOM")
+	queue_redraw()
+
 
 func _select_curve_mode() -> void:
 	build_mode = "" if build_mode == "curve" else "curve"
