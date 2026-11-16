@@ -477,6 +477,12 @@ func _handle_parallel_curve_tap(screen_position: Vector2) -> void:
 		return
 	var group_id := next_track_edge_id
 	parallel_curve_segments.append({"paths": pair, "start_station": pending_curve_start, "end_station": station_index, "start_point": curve_start, "end_point": curve_end, "start_node": pending_curve_start_node, "end_node": lane_node_id, "control": control, "group_id": group_id})
+	var start_junction_node := pending_curve_start_node
+	if start_junction_node < 0:
+		start_junction_node = _get_or_create_lane_node(curve_start, pending_curve_start, 0, -1)
+	var end_junction_node := lane_node_id
+	if end_junction_node < 0:
+		end_junction_node = _get_or_create_lane_node(curve_end, station_index, 0, -1)
 	for lane in range(2):
 		var path: PackedVector2Array = pair[lane]
 		var start_node := _get_or_create_lane_node(path[0], pending_curve_start, lane, group_id)
@@ -484,11 +490,51 @@ func _handle_parallel_curve_tap(screen_position: Vector2) -> void:
 		track_edges.append({"id": next_track_edge_id, "start_node": start_node, "end_node": end_node, "start_station": pending_curve_start, "end_station": station_index, "start_point": path[0], "end_point": path[path.size() - 1], "kind": "parallel_curve", "parallel_group": group_id, "lane_index": lane, "lane_count": 2, "centerline_spacing": PARALLEL_CENTERLINE_SPACING})
 		_register_lane_edge(next_track_edge_id, start_node, end_node)
 		next_track_edge_id += 1
+
+		# Blend both ends of each offset lane into the selected centerline nodes.
+		var start_path_tangent := (path[1] - path[0]).normalized()
+		var start_outgoing := _find_connected_track_tangent(curve_start, start_path_tangent, false)
+		if start_outgoing == Vector2.ZERO:
+			start_outgoing = (path[0] - curve_start).normalized()
+		var start_transition := _make_junction_transition(curve_start, path[0], start_outgoing, start_path_tangent)
+		if start_transition.size() > 1:
+			junction_transition_paths.append(start_transition)
+			track_edges.append({"id": next_track_edge_id, "start_node": start_junction_node, "end_node": start_node, "start_station": pending_curve_start, "end_station": pending_curve_start, "start_point": curve_start, "end_point": path[0], "kind": "transition", "parallel_group": -1, "lane_index": lane, "lane_count": 1, "centerline_spacing": 0.0})
+			_register_lane_edge(next_track_edge_id, start_junction_node, start_node)
+			next_track_edge_id += 1
+
+		var end_path_tangent := (path[path.size() - 1] - path[path.size() - 2]).normalized()
+		var end_incoming := _find_connected_track_tangent(curve_end, end_path_tangent, true)
+		if end_incoming == Vector2.ZERO:
+			end_incoming = (curve_end - path[path.size() - 1]).normalized()
+		var end_transition := _make_junction_transition(path[path.size() - 1], curve_end, end_path_tangent, end_incoming)
+		if end_transition.size() > 1:
+			junction_transition_paths.append(end_transition)
+			track_edges.append({"id": next_track_edge_id, "start_node": end_node, "end_node": end_junction_node, "start_station": station_index, "end_station": station_index, "start_point": path[path.size() - 1], "end_point": curve_end, "kind": "transition", "parallel_group": -1, "lane_index": lane, "lane_count": 1, "centerline_spacing": 0.0})
+			_register_lane_edge(next_track_edge_id, end_node, end_junction_node)
+			next_track_edge_id += 1
 	pending_curve_start = -1
 	pending_curve_start_node = -1
 	curve_stage = 0
 	queue_redraw()
 	hud.set_mode(build_mode, "PARALLEL CURVE CONNECTED  ·  SELECT ANOTHER START")
+
+func _make_junction_transition(start_point: Vector2, end_point: Vector2, start_tangent: Vector2, end_tangent: Vector2) -> PackedVector2Array:
+	var result := PackedVector2Array()
+	var distance := start_point.distance_to(end_point)
+	if distance < 0.5:
+		return result
+	var chord := (end_point - start_point).normalized()
+	var outgoing := start_tangent.normalized() if start_tangent.length_squared() > 0.001 else chord
+	var incoming := end_tangent.normalized() if end_tangent.length_squared() > 0.001 else chord
+	var handle_length := minf(distance * 0.42, maxf(distance * 0.22, 8.0))
+	var control_a := start_point + outgoing * handle_length
+	var control_b := end_point - incoming * handle_length
+	for step in range(25):
+		var t := float(step) / 24.0
+		var u := 1.0 - t
+		result.append(u * u * u * start_point + 3.0 * u * u * t * control_a + 3.0 * u * t * t * control_b + t * t * t * end_point)
+	return result
 
 func _offset_parallel_curve(centerline: PackedVector2Array, half_spacing: float) -> Array[PackedVector2Array]:
 	var first := PackedVector2Array()
