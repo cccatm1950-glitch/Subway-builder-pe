@@ -23,6 +23,9 @@ var pending_waypoints: Array[Vector2] = []
 # Topology records keep station connectivity and future parallel-lane metadata
 # separate from the legacy endpoint array used by current drawing code.
 var track_edges: Array[Dictionary] = []
+# Each centerline endpoint has an explicit lane node; shared nodes represent true continuity.
+var lane_nodes: Array[Dictionary] = []
+var next_lane_node_id := 1
 var junction_transition_paths: Array[PackedVector2Array] = []
 var next_track_edge_id := 1
 var curve_segments: Array[Dictionary] = []
@@ -224,8 +227,12 @@ func _handle_waypoint_tap(screen_position: Vector2) -> void:
 		var route := _make_waypoint_route(route_points)
 		if route.size() > 1:
 			waypoint_paths.append(route)
+			var start_node := _get_or_create_lane_node(route[0], pending_curve_start, 0, -1)
+			var end_node := _get_or_create_lane_node(route[route.size() - 1], station_index, 0, -1)
 			track_edges.append({
 				"id": next_track_edge_id,
+				"start_node": start_node,
+				"end_node": end_node,
 				"start_station": pending_curve_start,
 				"end_station": station_index,
 				"start_point": route[0],
@@ -360,7 +367,9 @@ func _handle_parallel_curve_tap(screen_position: Vector2) -> void:
 		# Join each offset curve endpoint back to the shared station marker.
 		junction_transition_paths.append(PackedVector2Array([curve_start, path[0]]))
 		junction_transition_paths.append(PackedVector2Array([curve_end, path[path.size() - 1]]))
-		track_edges.append({"id": next_track_edge_id, "start_station": pending_curve_start, "end_station": end_index, "start_point": path[0], "end_point": path[path.size() - 1], "kind": "parallel_curve", "parallel_group": group_id, "lane_index": lane, "lane_count": 2, "centerline_spacing": PARALLEL_CENTERLINE_SPACING})
+		var start_node := _get_or_create_lane_node(path[0], pending_curve_start, lane, group_id)
+		var end_node := _get_or_create_lane_node(path[path.size() - 1], end_index, lane, group_id)
+		track_edges.append({"id": next_track_edge_id, "start_node": start_node, "end_node": end_node, "start_station": pending_curve_start, "end_station": end_index, "start_point": path[0], "end_point": path[path.size() - 1], "kind": "parallel_curve", "parallel_group": group_id, "lane_index": lane, "lane_count": 2, "centerline_spacing": PARALLEL_CENTERLINE_SPACING})
 		next_track_edge_id += 1
 	pending_curve_start = -1
 	curve_stage = 0
@@ -528,6 +537,23 @@ func _make_curve_points(start_point: Vector2, control_point: Vector2, end_point:
 		points.append(second_point)
 	return points
 
+func _get_or_create_lane_node(position: Vector2, station_index: int, lane_index: int, parallel_group: int) -> int:
+	# Node identity belongs to a centerline position, not the station marker.
+	# This deliberately keeps the two offset lanes as separate endpoints.
+	for node in lane_nodes:
+		if int(node.get("station_index", -1)) == station_index and Vector2(node.get("position", Vector2.ZERO)).distance_to(position) <= 0.5:
+			return int(node["id"])
+	var node_id := next_lane_node_id
+	next_lane_node_id += 1
+	lane_nodes.append({
+		"id": node_id,
+		"position": position,
+		"station_index": station_index,
+		"lane_index": lane_index,
+		"parallel_group": parallel_group
+	})
+	return node_id
+
 func _add_track_edge(start_station: int, end_station: int, start_point: Vector2, end_point: Vector2, kind: String, parallel_group: int, lane_index: int, lane_count: int, spacing: float) -> void:
 	var draw_start := start_point
 	var draw_end := end_point
@@ -540,8 +566,12 @@ func _add_track_edge(start_station: int, end_station: int, start_point: Vector2,
 				junction_transition_paths.append(path)
 	track_segments.append(draw_start)
 	track_segments.append(draw_end)
+	var start_node := _get_or_create_lane_node(draw_start, start_station, lane_index, parallel_group)
+	var end_node := _get_or_create_lane_node(draw_end, end_station, lane_index, parallel_group)
 	track_edges.append({
 		"id": next_track_edge_id,
+		"start_node": start_node,
+		"end_node": end_node,
 		"start_station": start_station,
 		"end_station": end_station,
 		"start_point": draw_start,
