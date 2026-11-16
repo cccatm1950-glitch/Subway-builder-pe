@@ -353,8 +353,8 @@ func _handle_curve_tap(screen_position: Vector2) -> void:
 		if station_index >= 0:
 			endpoint = stations[station_index]
 	if curve_stage == 0:
-		if station_index < 0:
-			hud.set_mode(build_mode, "SELECT A START STATION OR LANE NODE")
+		if lane_node_id < 0 and station_index < 0:
+			hud.set_mode(build_mode, "SELECT A START STATION, WAYPOINT OR LANE NODE")
 			return
 		pending_curve_start = station_index
 		pending_curve_start_node = lane_node_id
@@ -369,10 +369,10 @@ func _handle_curve_tap(screen_position: Vector2) -> void:
 		hud.set_mode(build_mode, "DRAG THE CURVE HANDLE  ·  TAP END NODE")
 		queue_redraw()
 		return
-	if station_index < 0 or (station_index == pending_curve_start and lane_node_id == pending_curve_start_node):
-		hud.set_mode(build_mode, "TAP A DIFFERENT END STATION OR LANE NODE")
+	if (lane_node_id < 0 and station_index < 0) or (lane_node_id == pending_curve_start_node and pending_curve_start_node >= 0) or (lane_node_id < 0 and pending_curve_start_node < 0 and station_index == pending_curve_start):
+		hud.set_mode(build_mode, "TAP A DIFFERENT END STATION, WAYPOINT OR LANE NODE")
 		return
-	var start_fallback: Vector2 = stations[pending_curve_start]
+	var start_fallback: Vector2 = _get_lane_node_position(pending_curve_start_node, stations[pending_curve_start] if pending_curve_start >= 0 else Vector2.ZERO)
 	var curve_start := _get_lane_node_position(pending_curve_start_node, start_fallback)
 	var curve_end := endpoint
 	var curve_control := _constrain_curve_control(curve_start, pending_curve_control, curve_end)
@@ -405,8 +405,8 @@ func _handle_parallel_curve_tap(screen_position: Vector2) -> void:
 		if station_index >= 0:
 			endpoint = stations[station_index]
 	if curve_stage == 0:
-		if station_index < 0:
-			hud.set_mode(build_mode, "SELECT A START STATION OR LANE NODE")
+		if lane_node_id < 0 and station_index < 0:
+			hud.set_mode(build_mode, "SELECT A START STATION, WAYPOINT OR LANE NODE")
 			return
 		pending_curve_start = station_index
 		pending_curve_start_node = lane_node_id
@@ -421,10 +421,10 @@ func _handle_parallel_curve_tap(screen_position: Vector2) -> void:
 		hud.set_mode(build_mode, "DRAG SHARED HANDLE  ·  TAP END NODE")
 		queue_redraw()
 		return
-	if station_index < 0 or (station_index == pending_curve_start and lane_node_id == pending_curve_start_node):
-		hud.set_mode(build_mode, "TAP A DIFFERENT END STATION OR LANE NODE")
+	if (lane_node_id < 0 and station_index < 0) or (lane_node_id == pending_curve_start_node and pending_curve_start_node >= 0) or (lane_node_id < 0 and pending_curve_start_node < 0 and station_index == pending_curve_start):
+		hud.set_mode(build_mode, "TAP A DIFFERENT END STATION, WAYPOINT OR LANE NODE")
 		return
-	var start_fallback: Vector2 = stations[pending_curve_start]
+	var start_fallback: Vector2 = _get_lane_node_position(pending_curve_start_node, stations[pending_curve_start] if pending_curve_start >= 0 else Vector2.ZERO)
 	var curve_start := _get_lane_node_position(pending_curve_start_node, start_fallback)
 	var curve_end := endpoint
 	var control := _constrain_curve_control(curve_start, pending_curve_control, curve_end)
@@ -434,7 +434,7 @@ func _handle_parallel_curve_tap(screen_position: Vector2) -> void:
 		return
 	var group_id := next_track_edge_id
 	parallel_curve_segments.append({"paths": pair, "start_station": pending_curve_start, "end_station": station_index, "start_point": curve_start, "end_point": curve_end, "start_node": pending_curve_start_node, "end_node": lane_node_id, "control": control, "group_id": group_id})
-	var start_anchor_nodes := _resolve_parallel_curve_anchor_nodes(pending_curve_start, pending_curve_start_node, pair)
+	var start_anchor_nodes := _resolve_parallel_curve_anchor_nodes(pending_curve_start, pending_curve_start_node, pair, true)
 	var end_anchor_nodes := _resolve_parallel_curve_anchor_nodes(station_index, lane_node_id, pair, false)
 	for lane in range(2):
 		var path: PackedVector2Array = pair[lane]
@@ -483,14 +483,15 @@ func _resolve_parallel_curve_anchor_nodes(station_index: int, selected_node_id: 
 	var candidates: Array[Dictionary] = []
 	var selected_node := _get_lane_node(selected_node_id) if selected_node_id >= 0 else {}
 	var selected_group := int(selected_node.get("parallel_group", -1))
+	var fallback_position: Vector2 = Vector2(selected_node.get("position", stations[station_index] if station_index >= 0 and station_index < stations.size() else Vector2.ZERO))
 	if selected_group >= 0:
 		for edge in _get_parallel_group_lanes(selected_group):
-			var node_id := int(edge.get("start_node", -1)) if int(edge.get("start_station", -1)) == station_index else int(edge.get("end_node", -1))
+			var node_id := int(edge.get("start_node", -1)) if at_start else int(edge.get("end_node", -1))
 			if node_id < 0:
 				continue
 			var node := _get_lane_node(node_id)
 			if not node.is_empty():
-				candidates.append({"node_id": node_id, "position": Vector2(node.get("position", stations[station_index]))})
+				candidates.append({"node_id": node_id, "position": Vector2(node.get("position", fallback_position))})
 	if candidates.size() == 2:
 		# Match curve offsets to the closest corresponding existing lane endpoints.
 		var p0: Vector2 = paths[0][0] if at_start else paths[0][paths[0].size() - 1]
@@ -510,10 +511,15 @@ func _resolve_parallel_curve_anchor_nodes(station_index: int, selected_node_id: 
 		anchors[0] = {"node_id": selected_node_id, "position": selected_position}
 		anchors[1] = {"node_id": selected_node_id, "position": selected_position}
 	else:
-		var station_node := _get_or_create_lane_node(stations[station_index], station_index, 0, -1)
-		var station_anchor := {"node_id": station_node, "position": stations[station_index]}
-		anchors[0] = station_anchor
-		anchors[1] = station_anchor
+		var anchor_position := fallback_position
+		if selected_node_id < 0 and station_index >= 0 and station_index < stations.size():
+			anchor_position = stations[station_index]
+		var anchor_node := selected_node_id
+		if anchor_node < 0:
+			anchor_node = _get_or_create_lane_node(anchor_position, station_index, 0, -1)
+		var shared_anchor := {"node_id": anchor_node, "position": anchor_position}
+		anchors[0] = shared_anchor
+		anchors[1] = shared_anchor
 	return anchors
 
 
