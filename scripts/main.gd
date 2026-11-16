@@ -167,11 +167,14 @@ func _handle_screen_drag(event: InputEventScreenDrag) -> void:
 	var start: Vector2 = touch_starts.get(event.index, event.position)
 	if event.position.distance_to(start) > TAP_DRAG_THRESHOLD:
 		touch_moved[event.index] = true
-	# Camera movement is polled in _process from Input touch positions so
-	# missed/coalesced Android ScreenDrag events cannot freeze the map.
+	# Apply the drag immediately. _process polling cannot be used here because
+	# active_touches has already been updated to event.position above.
 	if active_touches.size() == 1:
+		if drag_delta.length_squared() > 0.0:
+			_pan_camera(drag_delta)
 		hud.set_input_status("MAP DRAG")
 	elif active_touches.size() >= 2:
+		_update_pinch_zoom()
 		hud.set_input_status("PINCH ZOOM")
 
 func _handle_mouse_button(event: InputEventMouseButton) -> void:
