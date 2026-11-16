@@ -23,6 +23,7 @@ var pending_waypoints: Array[Vector2] = []
 var waypoint_markers: Array[Vector2] = []
 var pending_waypoint_start_node := -1
 var pending_curve_start_node := -1
+var pending_curve_start_position := Vector2.ZERO
 # Topology records keep station connectivity and future parallel-lane metadata
 # separate from the legacy endpoint array used by current drawing code.
 var track_edges: Array[Dictionary] = []
@@ -35,6 +36,7 @@ var curve_segments: Array[Dictionary] = []
 var parallel_curve_segments: Array[Dictionary] = []
 var pending_track_start := -1
 var pending_track_start_node := -1
+var pending_track_start_position := Vector2.ZERO
 var pending_curve_start := -1
 var pending_curve_control := Vector2.ZERO
 var curve_stage := 0
@@ -195,6 +197,8 @@ func _handle_map_tap(_screen_position: Vector2) -> void:
 		_update_coordinate_readout()
 	elif build_mode == "track" or build_mode == "parallel":
 		var lane_node_id := _find_lane_node_near_screen(crosshair_screen) if build_mode == "track" else -1
+		if build_mode == "track" and lane_node_id < 0:
+			lane_node_id = _find_waypoint_node_near_screen(crosshair_screen)
 		var station_index := -1
 		var target_position := get_snapped_world_position(crosshair_screen)
 		if lane_node_id >= 0:
@@ -205,19 +209,19 @@ func _handle_map_tap(_screen_position: Vector2) -> void:
 			station_index = _find_station_near_screen(crosshair_screen)
 			if station_index >= 0:
 				target_position = stations[station_index]
-		if station_index == -1:
-			hud.set_mode(build_mode, "ALIGN THE CROSSHAIR WITH A STATION OR LANE NODE")
+		if station_index == -1 and lane_node_id < 0:
+			hud.set_mode(build_mode, "ALIGN CROSSHAIR WITH A STATION, LANE NODE OR WAYPOINT")
 			return
 		if pending_track_start == -1:
 			pending_track_start = station_index
 			pending_track_start_node = lane_node_id
+			pending_track_start_position = target_position
 			hud.set_mode(build_mode, "START SELECTED  ·  ALIGN CROSSHAIR WITH ANOTHER NODE")
-		elif station_index == pending_track_start and lane_node_id == pending_track_start_node:
+		elif lane_node_id >= 0 and lane_node_id == pending_track_start_node:
 			hud.set_mode(build_mode, "SAME NODE  ·  CHOOSE A DIFFERENT CONNECTION")
 		else:
 			var start_station := pending_track_start
-			var start_fallback: Vector2 = stations[start_station]
-			var start_position := _get_lane_node_position(pending_track_start_node, start_fallback)
+			var start_position := _get_lane_node_position(pending_track_start_node, pending_track_start_position)
 			if build_mode == "parallel":
 				_add_parallel_track_pair(start_station, station_index)
 			else:
@@ -330,6 +334,8 @@ func _draw_waypoint_preview() -> void:
 
 func _handle_curve_tap(screen_position: Vector2) -> void:
 	var lane_node_id := _find_lane_node_near_screen(screen_position)
+	if lane_node_id < 0:
+		lane_node_id = _find_waypoint_node_near_screen(screen_position)
 	var station_index := -1
 	var endpoint := get_snapped_world_position(screen_position)
 	if lane_node_id >= 0:
@@ -341,11 +347,12 @@ func _handle_curve_tap(screen_position: Vector2) -> void:
 		if station_index >= 0:
 			endpoint = stations[station_index]
 	if curve_stage == 0:
-		if station_index < 0:
-			hud.set_mode(build_mode, "SELECT A START STATION OR LANE NODE")
+		if station_index < 0 and lane_node_id < 0:
+			hud.set_mode(build_mode, "SELECT A START STATION, LANE NODE OR WAYPOINT")
 			return
 		pending_curve_start = station_index
 		pending_curve_start_node = lane_node_id
+		pending_curve_start_position = endpoint
 		curve_stage = 1
 		var start_screen: Vector2 = get_viewport().get_canvas_transform() * endpoint
 		var center := get_viewport_rect().size * 0.5
@@ -357,11 +364,10 @@ func _handle_curve_tap(screen_position: Vector2) -> void:
 		hud.set_mode(build_mode, "DRAG THE CURVE HANDLE  ·  TAP END NODE")
 		queue_redraw()
 		return
-	if station_index < 0 or (station_index == pending_curve_start and lane_node_id == pending_curve_start_node):
+	if (station_index < 0 and lane_node_id < 0) or (lane_node_id >= 0 and lane_node_id == pending_curve_start_node):
 		hud.set_mode(build_mode, "TAP A DIFFERENT END STATION OR LANE NODE")
 		return
-	var start_fallback: Vector2 = stations[pending_curve_start]
-	var curve_start := _get_lane_node_position(pending_curve_start_node, start_fallback)
+	var curve_start := _get_lane_node_position(pending_curve_start_node, pending_curve_start_position)
 	var curve_end := endpoint
 	var curve_control := _constrain_curve_control(curve_start, pending_curve_control, curve_end)
 	var start_node := pending_curve_start_node
@@ -412,8 +418,7 @@ func _handle_parallel_curve_tap(screen_position: Vector2) -> void:
 	if station_index < 0 or (station_index == pending_curve_start and lane_node_id == pending_curve_start_node):
 		hud.set_mode(build_mode, "TAP A DIFFERENT END STATION OR LANE NODE")
 		return
-	var start_fallback: Vector2 = stations[pending_curve_start]
-	var curve_start := _get_lane_node_position(pending_curve_start_node, start_fallback)
+	var curve_start := _get_lane_node_position(pending_curve_start_node, pending_curve_start_position)
 	var curve_end := endpoint
 	var control := _constrain_curve_control(curve_start, pending_curve_control, curve_end)
 	var pair := _offset_parallel_curve(_make_curve_points(curve_start, control, curve_end), PARALLEL_CENTERLINE_SPACING * 0.5)
@@ -686,7 +691,7 @@ func _add_track_edge(start_station: int, end_station: int, start_point: Vector2,
 	var draw_end := end_point
 	# Explicit lane-node connections already identify their exact centerline
 	# endpoints. Do not let the legacy station-level merge heuristic move them.
-	if kind == "single" and start_point.distance_to(stations[start_station]) <= 0.5 and end_point.distance_to(stations[end_station]) <= 0.5:
+	if kind == "single" and start_station >= 0 and end_station >= 0 and start_point.distance_to(stations[start_station]) <= 0.5 and end_point.distance_to(stations[end_station]) <= 0.5:
 		var merge_data := _build_parallel_merge_transition(start_station, end_station, start_point, end_point)
 		if not merge_data.is_empty():
 			draw_start = merge_data["draw_start"]
@@ -1022,6 +1027,20 @@ func _get_lane_node_position(node_id: int, fallback: Vector2) -> Vector2:
 	var node := _get_lane_node(node_id)
 	return Vector2(node.get("position", fallback))
 
+func _find_waypoint_node_near_screen(screen_position: Vector2) -> int:
+	var canvas_transform := get_viewport().get_canvas_transform()
+	var nearest_index := -1
+	var nearest_distance := STATION_PICK_RADIUS * 0.55
+	for index in range(waypoint_markers.size()):
+		var marker_screen: Vector2 = canvas_transform * waypoint_markers[index]
+		var distance := marker_screen.distance_to(screen_position)
+		if distance <= nearest_distance:
+			nearest_distance = distance
+			nearest_index = index
+	if nearest_index < 0:
+		return -1
+	return _get_or_create_lane_node(waypoint_markers[nearest_index], -1, 0, -1)
+
 func _find_station_near_screen(screen_position: Vector2) -> int:
 	var nearest_index := -1
 	var nearest_distance := STATION_PICK_RADIUS
@@ -1112,7 +1131,7 @@ func _draw() -> void:
 		var station := stations[index]
 		draw_circle(station, 12.0, Color(0.88, 0.96, 1.0))
 		draw_arc(station, 16.0, 0.0, TAU, 32, Color(0.25, 0.88, 0.82), 2.0, true)
-		if build_mode == "track" and index == pending_track_start:
+		if build_mode == "track" and int(node.get("id", -1)) == pending_track_start_node:
 			draw_arc(station, 23.0, 0.0, TAU, 32, Color(1.0, 1.0, 1.0), 2.0, true)
 
 func _draw_completed_curve_handle(curve: Dictionary, is_being_edited: bool) -> void:
@@ -1136,8 +1155,7 @@ func _get_curve_preview_endpoint() -> Vector2:
 	return get_snapped_world_position(center)
 
 func _draw_parallel_curve_preview() -> void:
-	var start_fallback: Vector2 = stations[pending_curve_start]
-	var start_point := _get_lane_node_position(pending_curve_start_node, start_fallback)
+	var start_point := _get_lane_node_position(pending_curve_start_node, pending_curve_start_position)
 	var end_point := _get_curve_preview_endpoint()
 	var control := _constrain_curve_control(start_point, pending_curve_control, end_point)
 	var pair := _offset_parallel_curve(_make_curve_points(start_point, control, end_point), PARALLEL_CENTERLINE_SPACING * 0.5)
@@ -1151,8 +1169,7 @@ func _draw_parallel_curve_preview() -> void:
 	draw_arc(control, 27.0 / camera.zoom.x, 0.0, TAU, 40, Color(0.72, 1.0, 0.97, 1.0), 3.0 / camera.zoom.x, true)
 
 func _draw_curve_preview() -> void:
-	var start_fallback: Vector2 = stations[pending_curve_start]
-	var start_point := _get_lane_node_position(pending_curve_start_node, start_fallback)
+	var start_point := _get_lane_node_position(pending_curve_start_node, pending_curve_start_position)
 	var end_point := _get_curve_preview_endpoint()
 	var points := _make_curve_points(start_point, pending_curve_control, end_point)
 	draw_polyline(points, Color(0.42, 1.0, 0.92, 0.9), 4.0 / camera.zoom.x, true)
@@ -1165,7 +1182,7 @@ func _draw_curve_preview() -> void:
 
 func _draw_track_preview() -> void:
 	var viewport_size := get_viewport_rect().size
-	var preview_start: Vector2 = _get_lane_node_position(pending_track_start_node, stations[pending_track_start])
+	var preview_start: Vector2 = _get_lane_node_position(pending_track_start_node, pending_track_start_position)
 	var preview_node_id := _find_lane_node_near_screen(viewport_size * 0.5) if build_mode == "track" else -1
 	var preview_end := _get_lane_node_position(preview_node_id, get_snapped_world_position(viewport_size * 0.5))
 	if build_mode == "parallel":
