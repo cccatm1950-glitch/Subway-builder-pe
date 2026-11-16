@@ -562,8 +562,8 @@ func _move_curve_handle(screen_position: Vector2) -> void:
 	var new_control := screen_to_world(screen_position)
 	if editing_parallel_curve_index >= 0 and editing_parallel_curve_index < parallel_curve_segments.size():
 		var parallel_curve: Dictionary = parallel_curve_segments[editing_parallel_curve_index]
-		var start_point: Vector2 = stations[int(parallel_curve["start_station"])]
-		var end_point: Vector2 = stations[int(parallel_curve["end_station"])]
+		var start_point: Vector2 = parallel_curve.get("start_point", stations[int(parallel_curve["start_station"])])
+		var end_point: Vector2 = parallel_curve.get("end_point", stations[int(parallel_curve["end_station"])])
 		var control := _constrain_curve_control(start_point, new_control, end_point)
 		var pair := _offset_parallel_curve(_make_curve_points(start_point, control, end_point), PARALLEL_CENTERLINE_SPACING * 0.5)
 		if pair.size() == 2 and pair[0].size() > 1 and pair[1].size() > 1:
@@ -584,8 +584,10 @@ func _move_curve_handle(screen_position: Vector2) -> void:
 		curve["control"] = _constrain_curve_control(curve["start"], new_control, curve["end"])
 	else:
 		if pending_curve_start >= 0 and pending_curve_start < stations.size():
-			var preview_end := get_snapped_world_position(get_viewport_rect().size * 0.5)
-			pending_curve_control = _constrain_curve_control(stations[pending_curve_start], new_control, preview_end)
+			var start_fallback: Vector2 = stations[pending_curve_start]
+			var start_point := _get_lane_node_position(pending_curve_start_node, start_fallback)
+			var preview_end := _get_curve_preview_endpoint()
+			pending_curve_control = _constrain_curve_control(start_point, new_control, preview_end)
 		else:
 			pending_curve_control = new_control
 
@@ -973,6 +975,7 @@ func _select_curve_mode() -> void:
 	editing_curve_index = -1
 	pending_track_start = -1
 	pending_curve_start = -1
+	pending_curve_start_node = -1
 	curve_stage = 0
 	hud.set_mode(build_mode, "SELECT START STATION" if build_mode == "curve" else "DRAG TO MOVE  ·  PINCH TO ZOOM")
 	queue_redraw()
@@ -1036,6 +1039,7 @@ func _select_parallel_curve_mode() -> void:
 	build_mode = "" if build_mode == "parallel_curve" else "parallel_curve"
 	pending_track_start = -1
 	pending_curve_start = -1
+	pending_curve_start_node = -1
 	curve_stage = 0
 	hud.set_mode(build_mode, "TAP START  ·  DRAG SHARED CURVE HANDLE  ·  TAP END" if build_mode == "parallel_curve" else "DRAG TO MOVE  ·  PINCH TO ZOOM")
 
@@ -1098,9 +1102,20 @@ func _draw_completed_curve_handle(curve: Dictionary, is_being_edited: bool) -> v
 	draw_circle(control, 10.0 / zoom_scale, Color(0.55, 1.0, 0.94, 0.98))
 	draw_arc(control, 27.0 / zoom_scale, 0.0, TAU, 40, Color(0.72, 1.0, 0.97, 1.0), 3.0 / zoom_scale, true)
 
+func _get_curve_preview_endpoint() -> Vector2:
+	var center := get_viewport_rect().size * 0.5
+	var node_id := _find_lane_node_near_screen(center)
+	if node_id >= 0:
+		return _get_lane_node_position(node_id, get_snapped_world_position(center))
+	var station_index := _find_station_near_screen(center)
+	if station_index >= 0:
+		return stations[station_index]
+	return get_snapped_world_position(center)
+
 func _draw_parallel_curve_preview() -> void:
-	var start_point: Vector2 = stations[pending_curve_start]
-	var end_point := get_snapped_world_position(get_viewport_rect().size * 0.5)
+	var start_fallback: Vector2 = stations[pending_curve_start]
+	var start_point := _get_lane_node_position(pending_curve_start_node, start_fallback)
+	var end_point := _get_curve_preview_endpoint()
 	var control := _constrain_curve_control(start_point, pending_curve_control, end_point)
 	var pair := _offset_parallel_curve(_make_curve_points(start_point, control, end_point), PARALLEL_CENTERLINE_SPACING * 0.5)
 	for path in pair:
@@ -1113,8 +1128,9 @@ func _draw_parallel_curve_preview() -> void:
 	draw_arc(control, 27.0 / camera.zoom.x, 0.0, TAU, 40, Color(0.72, 1.0, 0.97, 1.0), 3.0 / camera.zoom.x, true)
 
 func _draw_curve_preview() -> void:
-	var start_point: Vector2 = stations[pending_curve_start]
-	var end_point := get_snapped_world_position(get_viewport_rect().size * 0.5)
+	var start_fallback: Vector2 = stations[pending_curve_start]
+	var start_point := _get_lane_node_position(pending_curve_start_node, start_fallback)
+	var end_point := _get_curve_preview_endpoint()
 	var points := _make_curve_points(start_point, pending_curve_control, end_point)
 	draw_polyline(points, Color(0.42, 1.0, 0.92, 0.9), 4.0 / camera.zoom.x, true)
 	# A persistent guide makes the draggable control point easy to identify.
