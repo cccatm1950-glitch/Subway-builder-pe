@@ -19,6 +19,7 @@ var parallel_curve_button: Button
 var curve_button: Button
 var waypoint_button: Button
 var input_status_label: Label
+var debug_status_text := "WAITING FOR TOUCH"
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -195,8 +196,10 @@ func is_ui_position(screen_position: Vector2) -> bool:
 	return false
 
 func set_input_status(message: String) -> void:
+	debug_status_text = message
 	if is_instance_valid(input_status_label):
 		input_status_label.text = message
+	queue_redraw()
 
 func set_map_coordinates(position: Vector2) -> void:
 	if is_instance_valid(coordinate_label):
@@ -212,6 +215,10 @@ func set_mode(mode: String, message: String) -> void:
 	waypoint_button.modulate = Color(1, 1, 1, 1) if mode == "waypoint" else Color(0.72, 0.82, 0.86, 0.85)
 
 func _draw() -> void:
+	var status_rect := Rect2(Vector2(18, 118), Vector2(minf(size.x - 36.0, 430.0), 34.0))
+	draw_rect(status_rect, Color(0.015, 0.035, 0.045, 0.94), true)
+	draw_rect(status_rect, Color(0.20, 0.72, 0.70, 0.95), false, 1.0)
+	draw_string(ThemeDB.fallback_font, status_rect.position + Vector2(10, 23), debug_status_text, HORIZONTAL_ALIGNMENT_LEFT, status_rect.size.x - 20, 15, Color(0.72, 1.0, 0.96, 1.0))
 	var center := size * 0.5
 	var color := Color(0.88, 0.96, 1.0, 0.92)
 	draw_line(center + Vector2(-15, 0), center + Vector2(-5, 0), color, 2.0, true)
