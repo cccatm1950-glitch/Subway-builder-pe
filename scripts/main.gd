@@ -371,14 +371,39 @@ func _resolve_parallel_curve_anchor_nodes(station_index: int, selected_node_id: 
 	var selected_node := _get_lane_node(selected_node_id) if selected_node_id >= 0 else {}
 	var selected_group := int(selected_node.get("parallel_group", -1))
 	var fallback_position: Vector2 = Vector2(selected_node.get("position", stations[station_index] if station_index >= 0 and station_index < stations.size() else Vector2.ZERO))
+	# A curve endpoint may be attached to either end of an existing parallel
+	# group. Resolve the group node at the selected station, not simply the
+	# edge's start/end according to the new curve's direction.
+	var candidate_groups: Array[int] = []
 	if selected_group >= 0:
-		for edge in _get_parallel_group_lanes(selected_group):
-			var node_id := int(edge.get("start_node", -1)) if at_start else int(edge.get("end_node", -1))
-			if node_id < 0:
+		candidate_groups.append(selected_group)
+	elif station_index >= 0:
+		candidate_groups = _get_parallel_groups_at_station(station_index)
+	if not candidate_groups.is_empty():
+		var best_group := -1
+		var best_group_cost := INF
+		for group_id in candidate_groups:
+			var group_edges := _get_parallel_group_lanes(group_id)
+			if group_edges.size() != 2:
 				continue
-			var node := _get_lane_node(node_id)
-			if not node.is_empty():
-				candidates.append({"node_id": node_id, "position": Vector2(node.get("position", fallback_position))})
+			var group_cost := 0.0
+			for lane_edge in group_edges:
+				var candidate_node_id := int(lane_edge.get("start_node", -1)) if int(lane_edge.get("start_station", -1)) == station_index else int(lane_edge.get("end_node", -1))
+				var candidate_node := _get_lane_node(candidate_node_id)
+				var candidate_position: Vector2 = candidate_node.get("position", fallback_position)
+				var path_point: Vector2 = paths[0][0] if at_start else paths[0][paths[0].size() - 1]
+				group_cost += path_point.distance_to(candidate_position)
+			if group_cost < best_group_cost:
+				best_group_cost = group_cost
+				best_group = group_id
+		if best_group >= 0:
+			for edge in _get_parallel_group_lanes(best_group):
+				var node_id := int(edge.get("start_node", -1)) if int(edge.get("start_station", -1)) == station_index else int(edge.get("end_node", -1))
+				if node_id < 0:
+					continue
+				var node := _get_lane_node(node_id)
+				if not node.is_empty():
+					candidates.append({"node_id": node_id, "position": Vector2(node.get("position", fallback_position))})
 	if candidates.size() == 2:
 		# Match curve offsets to the closest corresponding existing lane endpoints.
 		var p0: Vector2 = paths[0][0] if at_start else paths[0][paths[0].size() - 1]
