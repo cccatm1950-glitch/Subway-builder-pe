@@ -173,29 +173,32 @@ func _handle_mouse_button(event: InputEventMouseButton) -> void:
 				hud.set_input_status("POINTER DRAG END")
 			mouse_pointer_down = false
 
-func _handle_map_tap(screen_position: Vector2) -> void:
+func _handle_map_tap(_screen_position: Vector2) -> void:
+	# Construction taps are routed to the fixed screen-center crosshair.
+	# Finger position never relocates the target; map drags remain camera pans.
+	var crosshair_screen := get_viewport_rect().size * 0.5
 	if build_mode == "curve":
-		_handle_curve_tap(screen_position)
+		_handle_curve_tap(crosshair_screen)
 	elif build_mode == "parallel_curve":
-		_handle_parallel_curve_tap(screen_position)
+		_handle_parallel_curve_tap(crosshair_screen)
 	elif build_mode == "waypoint":
-		_handle_waypoint_tap(screen_position)
+		_handle_waypoint_tap(crosshair_screen)
 	elif build_mode == "station":
-		var station_position := get_snapped_world_position(screen_position)
+		var station_position := get_snapped_world_position(crosshair_screen)
 		if not stations.has(station_position):
 			stations.append(station_position)
 			queue_redraw()
 		_update_coordinate_readout()
 	elif build_mode == "track" or build_mode == "parallel":
-		var station_index := _find_station_near_screen(screen_position)
+		var station_index := _find_station_near_screen(crosshair_screen)
 		if station_index == -1:
-			hud.set_mode(build_mode, "TAP DIRECTLY ON A STATION")
+			hud.set_mode(build_mode, "ALIGN THE CROSSHAIR WITH A STATION OR TRACK NODE")
 			return
 		if pending_track_start == -1:
 			pending_track_start = station_index
-			hud.set_mode(build_mode, "START SELECTED  ·  TAP A DIFFERENT STATION")
+			hud.set_mode(build_mode, "START SELECTED  ·  ALIGN CROSSHAIR WITH ANOTHER NODE")
 		elif station_index == pending_track_start:
-			hud.set_mode(build_mode, "SAME STATION  ·  CHOOSE A DIFFERENT ONE")
+			hud.set_mode(build_mode, "SAME STATION  ·  CHOOSE A DIFFERENT NODE")
 		else:
 			var start_station := pending_track_start
 			var end_station := station_index
