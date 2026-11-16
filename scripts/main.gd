@@ -18,6 +18,8 @@ var previous_pinch_distance := 0.0
 var build_mode := ""
 var stations: Array[Vector2] = []
 var track_segments: Array[Vector2] = []
+var waypoint_paths: Array[PackedVector2Array] = []
+var pending_waypoints: Array[Vector2] = []
 # Topology records keep station connectivity and future parallel-lane metadata
 # separate from the legacy endpoint array used by current drawing code.
 var track_edges: Array[Dictionary] = []
@@ -169,6 +171,8 @@ func _handle_map_tap(screen_position: Vector2) -> void:
 		_handle_curve_tap(screen_position)
 	elif build_mode == "parallel_curve":
 		_handle_parallel_curve_tap(screen_position)
+	elif build_mode == "waypoint":
+		_handle_waypoint_tap(screen_position)
 	elif build_mode == "station":
 		var station_position := get_snapped_world_position(screen_position)
 		if not stations.has(station_position):
@@ -195,6 +199,89 @@ func _handle_map_tap(screen_position: Vector2) -> void:
 			pending_track_start = -1
 			queue_redraw()
 			hud.set_mode(build_mode, "TRACKS CONNECTED  ·  SELECT ANOTHER START" if build_mode == "parallel" else "TRACK CONNECTED  ·  SELECT ANOTHER START")
+
+func _handle_waypoint_tap(screen_position: Vector2) -> void:
+	# Dedicated waypoint route workflow: start station, any number of map
+	# anchors, then an end station. Stations remain the only network nodes.
+	var station_index := _find_station_near_screen(screen_position)
+	if pending_curve_start == -1:
+		if station_index == -1:
+			hud.set_mode(build_mode, "SELECT A START STATION")
+			return
+		pending_curve_start = station_index
+		pending_waypoints.clear()
+		hud.set_mode(build_mode, "TAP MAP TO ADD WAYPOINTS  ·  TAP END STATION TO FINISH")
+		queue_redraw()
+		return
+	if station_index >= 0 and station_index != pending_curve_start:
+		var route_points: Array[Vector2] = [stations[pending_curve_start]]
+		route_points.append_array(pending_waypoints)
+		route_points.append(stations[station_index])
+		var route := _make_waypoint_route(route_points)
+		if route.size() > 1:
+			waypoint_paths.append(route)
+			track_edges.append({
+				"id": next_track_edge_id,
+				"start_station": pending_curve_start,
+				"end_station": station_index,
+				"start_point": route[0],
+				"end_point": route[route.size() - 1],
+				"kind": "waypoint",
+				"parallel_group": -1,
+				"lane_index": 0,
+				"lane_count": 1,
+				"centerline_spacing": 0.0
+			})
+			next_track_edge_id += 1
+		pending_curve_start = -1
+		pending_waypoints.clear()
+		queue_redraw()
+		hud.set_mode(build_mode, "WAYPOINT ROUTE CONNECTED  ·  SELECT ANOTHER START")
+		return
+	var waypoint := get_snapped_world_position(screen_position)
+	if pending_waypoints.is_empty() or pending_waypoints[pending_waypoints.size() - 1].distance_to(waypoint) >= SNAP_SPACING:
+		pending_waypoints.append(waypoint)
+		hud.set_mode(build_mode, "WAYPOINT %d ADDED  ·  TAP MORE OR AN END STATION" % pending_waypoints.size())
+		queue_redraw()
+
+func _make_waypoint_route(route_points: Array[Vector2]) -> PackedVector2Array:
+	var result := PackedVector2Array()
+	if route_points.size() < 2:
+		return result
+	if route_points.size() == 2:
+		result.append(route_points[0])
+		result.append(route_points[1])
+		return result
+	# Catmull-Rom interpolation gives each waypoint a smooth, editable bend.
+	for segment in range(route_points.size() - 1):
+		var p0: Vector2 = route_points[maxi(segment - 1, 0)]
+		var p1: Vector2 = route_points[segment]
+		var p2: Vector2 = route_points[segment + 1]
+		var p3: Vector2 = route_points[mini(segment + 2, route_points.size() - 1)]
+		for step in range(13):
+			if segment > 0 and step == 0:
+				continue
+			var t := float(step) / 12.0
+			var t2 := t * t
+			var t3 := t2 * t
+			var point := 0.5 * ((2.0 * p1) + (-p0 + p2) * t + (2.0 * p0 - 5.0 * p1 + 4.0 * p2 - p3) * t2 + (-p0 + 3.0 * p1 - 3.0 * p2 + p3) * t3)
+			result.append(point)
+	return result
+
+func _draw_waypoint_preview() -> void:
+	if pending_curve_start < 0 or pending_curve_start >= stations.size():
+		return
+	var preview_points: Array[Vector2] = [stations[pending_curve_start]]
+	preview_points.append_array(pending_waypoints)
+	preview_points.append(get_snapped_world_position(get_viewport_rect().size * 0.5))
+	var preview := _make_waypoint_route(preview_points)
+	if preview.size() > 1:
+		for index in range(preview.size() - 1):
+			if index % 2 == 0:
+				draw_line(preview[index], preview[index + 1], Color(0.42, 1.0, 0.92, 0.72), 3.0 / camera.zoom.x, true)
+	for point in pending_waypoints:
+		draw_circle(point, 8.0 / camera.zoom.x, Color(0.08, 0.24, 0.25, 1.0))
+		draw_arc(point, 13.0 / camera.zoom.x, 0.0, TAU, 24, Color(0.65, 1.0, 0.95, 1.0), 2.0 / camera.zoom.x, true)
 
 func _handle_curve_tap(screen_position: Vector2) -> void:
 	if curve_stage == 0:
@@ -711,6 +798,9 @@ func _draw() -> void:
 	for path in junction_transition_paths:
 		if path.size() > 1:
 			draw_polyline(path, Color(0.24, 0.86, 0.78), 7.0, true)
+	for path in waypoint_paths:
+		if path.size() > 1:
+			draw_polyline(path, Color(0.24, 0.86, 0.78), 7.0, true)
 	for index in range(0, track_segments.size(), 2):
 		if index + 1 < track_segments.size():
 			draw_line(track_segments[index], track_segments[index + 1], Color(0.24, 0.86, 0.78), 7.0, true)
@@ -720,6 +810,8 @@ func _draw() -> void:
 		_draw_curve_preview()
 	if build_mode == "parallel_curve" and pending_curve_start >= 0 and pending_curve_start < stations.size():
 		_draw_parallel_curve_preview()
+	if build_mode == "waypoint" and pending_curve_start >= 0 and pending_curve_start < stations.size():
+		_draw_waypoint_preview()
 	for segment in parallel_curve_segments:
 		for path in segment["paths"]:
 			if path.size() > 1:
