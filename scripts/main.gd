@@ -680,11 +680,45 @@ func _add_parallel_track_pair(start_station: int, end_station: int) -> void:
 	_add_track_edge(start_station, end_station, lane_b_start, lane_b_end, "parallel", group_id, 1, 2, PARALLEL_CENTERLINE_SPACING)
 
 func _get_station_track_degree(station_index: int) -> int:
+	# A two-lane parallel pair is one physical connection at a station.
+	# Count each parallel group once, while keeping individual single lanes
+	# and waypoint routes as independent connections.
 	var degree := 0
+	var counted_parallel_groups: Dictionary = {}
 	for edge in track_edges:
-		if int(edge.get("start_station", -1)) == station_index or int(edge.get("end_station", -1)) == station_index:
-			degree += 1
+		if int(edge.get("start_station", -1)) != station_index and int(edge.get("end_station", -1)) != station_index:
+			continue
+		var parallel_group := int(edge.get("parallel_group", -1))
+		if parallel_group >= 0:
+			if counted_parallel_groups.has(parallel_group):
+				continue
+			counted_parallel_groups[parallel_group] = true
+		degree += 1
 	return degree
+
+
+func _get_parallel_groups_at_station(station_index: int) -> Array[int]:
+	var groups: Array[int] = []
+	for edge in track_edges:
+		if int(edge.get("parallel_group", -1)) < 0:
+			continue
+		if int(edge.get("start_station", -1)) != station_index and int(edge.get("end_station", -1)) != station_index:
+			continue
+		var group_id := int(edge.get("parallel_group", -1))
+		if not groups.has(group_id):
+			groups.append(group_id)
+	return groups
+
+
+func _get_parallel_group_lanes(group_id: int) -> Array[Dictionary]:
+	var lanes: Array[Dictionary] = []
+	for edge in track_edges:
+		if int(edge.get("parallel_group", -1)) == group_id:
+			lanes.append(edge)
+	lanes.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		return int(a.get("lane_index", 0)) < int(b.get("lane_index", 0))
+	)
+	return lanes
 
 func _get_junction_type(station_index: int) -> String:
 	var degree := _get_station_track_degree(station_index)
