@@ -503,9 +503,6 @@ func _build_parallel_merge_transition(start_station: int, end_station: int, star
 	if best_alignment < 0.72:
 		# Diverging connection: preserve the unselected parallel lane and
 		# create one turnout from the lane on the side of the outgoing route.
-		var side := outward_direction.dot(normal)
-		var selected_lane := 0 if side >= 0.0 else 1
-		var lane_point: Vector2 = lane_endpoints[selected_lane]
 		var neighbor_direction := Vector2.ZERO
 		for edge in track_edges:
 			if int(edge.get("parallel_group", -1)) != selected_group:
@@ -518,6 +515,16 @@ func _build_parallel_merge_transition(start_station: int, end_station: int, star
 				break
 		if neighbor_direction == Vector2.ZERO:
 			return {}
+		var parallel_normal := Vector2(-neighbor_direction.y, neighbor_direction.x)
+		var branch_side := outward_direction.dot(parallel_normal)
+		var selected_lane := 0
+		var selected_offset := (lane_endpoints[0] - original_merge_point).dot(parallel_normal)
+		for lane_index in range(1, lane_endpoints.size()):
+			var lane_offset := (lane_endpoints[lane_index] - original_merge_point).dot(parallel_normal)
+			if (branch_side >= 0.0 and lane_offset > selected_offset) or (branch_side < 0.0 and lane_offset < selected_offset):
+				selected_lane = lane_index
+				selected_offset = lane_offset
+		var lane_point: Vector2 = lane_endpoints[selected_lane]
 		var switch_length := minf(merge_length, lane_point.distance_to(merge_point) + merge_length * 0.35)
 		var switch_end := merge_point
 		var first_control := lane_point + neighbor_direction * (switch_length * 0.34)
