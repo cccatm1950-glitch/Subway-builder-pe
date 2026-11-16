@@ -52,7 +52,6 @@ func _ready() -> void:
 	camera.enabled = true
 	camera.position = Vector2.ZERO
 	camera.zoom = Vector2.ONE
-	hud.map_input_event.connect(_handle_hud_map_input)
 	hud.zoom_in_requested.connect(_zoom_in)
 	hud.zoom_out_requested.connect(_zoom_out)
 	hud.station_mode_requested.connect(_select_station_mode)
@@ -64,15 +63,12 @@ func _ready() -> void:
 	_update_coordinate_readout()
 	hud.set_input_status("INPUT READY")
 
-
-func _handle_hud_map_input(event: InputEvent) -> void:
+func _input(event: InputEvent) -> void:
 	if event is InputEventScreenTouch:
 		_handle_screen_touch(event)
 	elif event is InputEventScreenDrag:
 		_handle_screen_drag(event)
-
-func _input(event: InputEvent) -> void:
-	if event is InputEventMouseButton:
+	elif event is InputEventMouseButton:
 		_handle_mouse_button(event)
 	elif event is InputEventMouseMotion and (event.button_mask & MOUSE_BUTTON_MASK_LEFT) != 0:
 		if curve_handle_dragging and curve_handle_touch_index == -2:
@@ -95,7 +91,7 @@ func _handle_screen_touch(event: InputEventScreenTouch) -> void:
 		active_touches[event.index] = event.position
 		touch_starts[event.index] = event.position
 		touch_moved[event.index] = false
-		hud.set_input_status("TOUCH DOWN  #%d  %d,%d" % [event.index, roundi(event.position.x), roundi(event.position.y)])
+		hud.set_input_status("TOUCH %d DOWN" % active_touches.size())
 		if active_touches.size() >= 2:
 			for touch_id in active_touches:
 				touch_moved[touch_id] = true
@@ -145,21 +141,14 @@ func _handle_screen_drag(event: InputEventScreenDrag) -> void:
 	# InputEventScreenDrag.relative, which can be zero on some Android devices.
 	var previous_position: Vector2 = active_touches[event.index]
 	var drag_delta := event.position - previous_position
-	# Some Android drivers report the absolute event position without a useful
-	# relative delta. Keep both values visible so the next device test identifies
-	# whether the OS is delivering drag events and whether coordinates change.
-	if drag_delta.length_squared() < 0.01 and event.screen_relative.length_squared() > 0.01:
-		drag_delta = event.screen_relative
 	active_touches[event.index] = event.position
 	var start: Vector2 = touch_starts.get(event.index, event.position)
 	if event.position.distance_to(start) > TAP_DRAG_THRESHOLD:
 		touch_moved[event.index] = true
-	# Apply the drag immediately. _process polling cannot be used here because
-	# active_touches has already been updated to event.position above.
 	if active_touches.size() == 1:
 		if drag_delta.length_squared() > 0.0:
 			_pan_camera(drag_delta)
-		hud.set_input_status("DRAG  #%d  Δ%d,%d" % [event.index, roundi(drag_delta.x), roundi(drag_delta.y)])
+		hud.set_input_status("MAP DRAG")
 	elif active_touches.size() >= 2:
 		_update_pinch_zoom()
 		hud.set_input_status("PINCH ZOOM")
@@ -1263,7 +1252,6 @@ func _clip_preview_segment(a: Vector2, b: Vector2, rect: Rect2) -> Array[Vector2
 
 func _pan_camera(screen_delta: Vector2) -> void:
 	camera.position -= screen_delta / camera.zoom.x
-	hud.set_input_status("CAM %d,%d" % [roundi(camera.position.x), roundi(camera.position.y)])
 	queue_redraw()
 	_update_coordinate_readout()
 
