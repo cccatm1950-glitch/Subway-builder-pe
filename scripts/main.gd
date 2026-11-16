@@ -459,8 +459,12 @@ func _move_curve_handle(screen_position: Vector2) -> void:
 			for edge_index in range(track_edges.size()):
 				if int(track_edges[edge_index].get("parallel_group", -1)) == group_id:
 					var lane_index := int(track_edges[edge_index].get("lane_index", 0))
-					track_edges[edge_index]["start_point"] = pair[lane_index][0]
-					track_edges[edge_index]["end_point"] = pair[lane_index][pair[lane_index].size() - 1]
+					var start_position: Vector2 = pair[lane_index][0]
+					var end_position: Vector2 = pair[lane_index][pair[lane_index].size() - 1]
+					track_edges[edge_index]["start_point"] = start_position
+					track_edges[edge_index]["end_point"] = end_position
+					_set_lane_node_position(int(track_edges[edge_index].get("start_node", -1)), start_position)
+					_set_lane_node_position(int(track_edges[edge_index].get("end_node", -1)), end_position)
 	elif editing_curve_index >= 0 and editing_curve_index < curve_segments.size():
 		var curve: Dictionary = curve_segments[editing_curve_index]
 		curve["control"] = _constrain_curve_control(curve["start"], new_control, curve["end"])
@@ -553,6 +557,13 @@ func _get_or_create_lane_node(position: Vector2, station_index: int, lane_index:
 		"parallel_group": parallel_group
 	})
 	return node_id
+
+func _set_lane_node_position(node_id: int, position: Vector2) -> void:
+	for index in range(lane_nodes.size()):
+		if int(lane_nodes[index].get("id", -1)) == node_id:
+			lane_nodes[index]["position"] = position
+			return
+
 
 func _add_track_edge(start_station: int, end_station: int, start_point: Vector2, end_point: Vector2, kind: String, parallel_group: int, lane_index: int, lane_count: int, spacing: float) -> void:
 	var draw_start := start_point
