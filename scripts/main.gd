@@ -63,27 +63,6 @@ func _ready() -> void:
 	_update_coordinate_readout()
 	hud.set_input_status("INPUT READY")
 
-func _process(_delta: float) -> void:
-	# Android fallback: poll active touch coordinates every frame. Some device/
-	# Godot combinations deliver touch-down but omit or coalesce ScreenDrag events.
-	if active_touches.is_empty():
-		return
-	var live_positions: Dictionary = {}
-	for touch_id in active_touches.keys():
-		var current_position := Input.get_touch_position(int(touch_id))
-		live_positions[touch_id] = current_position
-		var previous_position: Vector2 = active_touches[touch_id]
-		var start_position: Vector2 = touch_starts.get(touch_id, previous_position)
-		if current_position.distance_to(start_position) > TAP_DRAG_THRESHOLD:
-			touch_moved[touch_id] = true
-		if active_touches.size() == 1 and not curve_handle_dragging:
-			var delta := current_position - previous_position
-			if delta.length_squared() > 0.0:
-				_pan_camera(delta)
-	for touch_id in live_positions:
-		active_touches[touch_id] = live_positions[touch_id]
-	if active_touches.size() >= 2:
-		_update_pinch_zoom()
 
 func _input(event: InputEvent) -> void:
 	if event is InputEventScreenTouch:
