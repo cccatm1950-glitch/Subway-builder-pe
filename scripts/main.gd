@@ -536,17 +536,22 @@ func _build_parallel_merge_transition(start_station: int, end_station: int, star
 			turnout.append(u * u * u * lane_point + 3.0 * u * u * t * first_control + 3.0 * u * t * t * second_control + t * t * t * switch_end)
 		paths.append(turnout)
 	else:
-		# Parallel-to-single merge: both lanes converge symmetrically.
-		for lane_point in lane_endpoints:
-			var lateral_offset := (lane_point - original_merge_point).dot(normal)
-			var path := PackedVector2Array()
-			var first_control := lane_point + outward_direction * (merge_length * 0.38)
-			var second_control := merge_point - outward_direction * (merge_length * 0.24) + normal * (lateral_offset * 0.22)
-			for step in range(31):
-				var t := float(step) / 30.0
-				var u := 1.0 - t
-				path.append(u * u * u * lane_point + 3.0 * u * u * t * first_control + 3.0 * u * t * t * second_control + t * t * t * merge_point)
-			paths.append(path)
+		# True parallel-to-single merge: keep one existing lane as the
+		# through route and bring only the other lane into it. Never create a
+		# new single centerline between the two parallel tracks.
+		var through_lane := 0
+		var merge_lane := 1
+		var through_point: Vector2 = lane_endpoints[through_lane]
+		var merging_point: Vector2 = lane_endpoints[merge_lane]
+		var first_control := merging_point + outward_direction * (merge_length * 0.38)
+		var second_control := through_point - outward_direction * (merge_length * 0.24)
+		var merge_path := PackedVector2Array()
+		for step in range(41):
+			var t := float(step) / 40.0
+			var u := 1.0 - t
+			merge_path.append(u * u * u * merging_point + 3.0 * u * u * t * first_control + 3.0 * u * t * t * second_control + t * t * t * through_point)
+		paths.append(merge_path)
+		merge_point = through_point
 	if toward_end:
 		return {"draw_start": merge_point, "draw_end": end_point, "paths": paths}
 	return {"draw_start": start_point, "draw_end": merge_point, "paths": paths}
