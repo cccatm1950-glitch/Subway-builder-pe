@@ -319,10 +319,30 @@ func _handle_parallel_curve_tap(screen_position: Vector2) -> void:
 	if pair.size() != 2 or pair[0].size() < 2 or pair[1].size() < 2:
 		hud.set_mode(build_mode, "COULD NOT CREATE PARALLEL CURVE")
 		return
-	var group_id := next_track_edge_id
-	parallel_curve_segments.append({"paths": pair, "start_station": pending_curve_start, "end_station": station_index, "start_point": curve_start, "end_point": curve_end, "start_node": pending_curve_start_node, "end_node": lane_node_id, "control": control, "group_id": group_id})
+	# Resolve both lane endpoints first. When either end belongs to an existing
+	# parallel section, the curve's true anchor is the midpoint between its two
+	# lane nodes, not the one lane node the user happened to tap.
 	var start_anchor_nodes := _resolve_parallel_curve_anchor_nodes(pending_curve_start, pending_curve_start_node, pair, true)
 	var end_anchor_nodes := _resolve_parallel_curve_anchor_nodes(station_index, lane_node_id, pair, false)
+	var start_anchor_midpoint := (Vector2(start_anchor_nodes[0]["position"]) + Vector2(start_anchor_nodes[1]["position"])) * 0.5
+	var end_anchor_midpoint := (Vector2(end_anchor_nodes[0]["position"]) + Vector2(end_anchor_nodes[1]["position"])) * 0.5
+	var start_tangent := _average_parallel_anchor_tangent(start_anchor_nodes, (control - curve_start).normalized(), false)
+	var end_tangent := _average_parallel_anchor_tangent(end_anchor_nodes, (curve_end - control).normalized(), true)
+	if int(start_anchor_nodes[0]["node_id"]) != int(start_anchor_nodes[1]["node_id"]):
+		curve_start = start_anchor_midpoint
+	if int(end_anchor_nodes[0]["node_id"]) != int(end_anchor_nodes[1]["node_id"]):
+		curve_end = end_anchor_midpoint
+	control = _constrain_curve_control(curve_start, control, curve_end)
+	var centerline := _make_curve_points(curve_start, control, curve_end, start_tangent, end_tangent)
+	pair = _offset_parallel_curve(centerline, PARALLEL_CENTERLINE_SPACING * 0.5)
+	if pair.size() != 2 or pair[0].size() < 2 or pair[1].size() < 2:
+		hud.set_mode(build_mode, "COULD NOT CREATE PARALLEL CURVE")
+		return
+	# Re-pair after rebuilding from the midpoint-based centerline.
+	start_anchor_nodes = _resolve_parallel_curve_anchor_nodes(pending_curve_start, pending_curve_start_node, pair, true)
+	end_anchor_nodes = _resolve_parallel_curve_anchor_nodes(station_index, lane_node_id, pair, false)
+	var group_id := next_track_edge_id
+	parallel_curve_segments.append({"paths": pair, "start_station": pending_curve_start, "end_station": station_index, "start_point": curve_start, "end_point": curve_end, "start_node": pending_curve_start_node, "end_node": lane_node_id, "control": control, "group_id": group_id})
 	for lane in range(2):
 		var path: PackedVector2Array = pair[lane]
 		var start_anchor: Dictionary = start_anchor_nodes[lane]
@@ -566,7 +586,17 @@ func _constrain_curve_control(start_point: Vector2, raw_control: Vector2, end_po
 	var sideways := clampf(offset.dot(normal), -chord_length * 0.8, chord_length * 0.8)
 	return midpoint + direction * along + normal * sideways
 
-func _make_curve_points(start_point: Vector2, control_point: Vector2, end_point: Vector2) -> PackedVector2Array:
+func _average_parallel_anchor_tangent(anchors: Array[Dictionary], preferred_direction: Vector2, at_curve_end: bool) -> Vector2:
+	var tangent_sum := Vector2.ZERO
+	for anchor in anchors:
+		var tangent := _find_connected_track_tangent(Vector2(anchor["position"]), preferred_direction, at_curve_end)
+		if tangent != Vector2.ZERO:
+			if tangent_sum != Vector2.ZERO and tangent_sum.dot(tangent) < 0.0:
+				tangent = -tangent
+			tangent_sum += tangent
+	return tangent_sum.normalized() if tangent_sum.length_squared() > 0.001 else Vector2.ZERO
+
+func _make_curve_points(start_point: Vector2, control_point: Vector2, end_point: Vector2, start_tangent_override: Vector2 = Vector2.ZERO, end_tangent_override: Vector2 = Vector2.ZERO) -> PackedVector2Array:
 	var points := PackedVector2Array()
 	var chord := end_point - start_point
 	var chord_length := chord.length()
@@ -578,8 +608,8 @@ func _make_curve_points(start_point: Vector2, control_point: Vector2, end_point:
 	if first_length < 0.001 or second_length < 0.001:
 		return points
 
-	var start_track_tangent := _find_connected_track_tangent(start_point, start_to_handle.normalized(), false)
-	var end_track_tangent := _find_connected_track_tangent(end_point, handle_to_end.normalized(), true)
+	var start_track_tangent := start_tangent_override if start_tangent_override != Vector2.ZERO else _find_connected_track_tangent(start_point, start_to_handle.normalized(), false)
+	var end_track_tangent := end_tangent_override if end_tangent_override != Vector2.ZERO else _find_connected_track_tangent(end_point, handle_to_end.normalized(), true)
 	var start_tangent := start_track_tangent if start_track_tangent != Vector2.ZERO else start_to_handle.normalized()
 	var end_tangent := end_track_tangent if end_track_tangent != Vector2.ZERO else handle_to_end.normalized()
 	if start_tangent == Vector2.ZERO:
