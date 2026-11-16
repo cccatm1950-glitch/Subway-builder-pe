@@ -422,47 +422,88 @@ func _handle_parallel_curve_tap(screen_position: Vector2) -> void:
 		return
 	var group_id := next_track_edge_id
 	parallel_curve_segments.append({"paths": pair, "start_station": pending_curve_start, "end_station": station_index, "start_point": curve_start, "end_point": curve_end, "start_node": pending_curve_start_node, "end_node": lane_node_id, "control": control, "group_id": group_id})
-	var start_junction_node := pending_curve_start_node
-	if start_junction_node < 0:
-		start_junction_node = _get_or_create_lane_node(curve_start, pending_curve_start, 0, -1)
-	var end_junction_node := lane_node_id
-	if end_junction_node < 0:
-		end_junction_node = _get_or_create_lane_node(curve_end, station_index, 0, -1)
+	var start_anchor_nodes := _resolve_parallel_curve_anchor_nodes(pending_curve_start, pending_curve_start_node, pair)
+	var end_anchor_nodes := _resolve_parallel_curve_anchor_nodes(station_index, lane_node_id, pair, false)
 	for lane in range(2):
 		var path: PackedVector2Array = pair[lane]
+		var start_anchor: Dictionary = start_anchor_nodes[lane]
+		var end_anchor: Dictionary = end_anchor_nodes[lane]
+		var start_anchor_position: Vector2 = start_anchor["position"]
+		var end_anchor_position: Vector2 = end_anchor["position"]
 		var start_node := _get_or_create_lane_node(path[0], pending_curve_start, lane, group_id)
 		var end_node := _get_or_create_lane_node(path[path.size() - 1], station_index, lane, group_id)
 		track_edges.append({"id": next_track_edge_id, "start_node": start_node, "end_node": end_node, "start_station": pending_curve_start, "end_station": station_index, "start_point": path[0], "end_point": path[path.size() - 1], "kind": "parallel_curve", "parallel_group": group_id, "lane_index": lane, "lane_count": 2, "centerline_spacing": PARALLEL_CENTERLINE_SPACING})
 		_register_lane_edge(next_track_edge_id, start_node, end_node)
 		next_track_edge_id += 1
 
-		# Blend both ends of each offset lane into the selected centerline nodes.
+		# Each offset curve lane connects to its corresponding existing lane
+		# node. A selected parallel endpoint must never fan both new lanes into
+		# the same node, which would collapse two centerlines into one junction.
 		var start_path_tangent := (path[1] - path[0]).normalized()
-		var start_outgoing := _find_connected_track_tangent(curve_start, start_path_tangent, false)
+		var start_outgoing := _find_connected_track_tangent(start_anchor_position, start_path_tangent, false)
 		if start_outgoing == Vector2.ZERO:
-			start_outgoing = (path[0] - curve_start).normalized()
-		var start_transition := _make_junction_transition(curve_start, path[0], start_outgoing, start_path_tangent)
-		if start_transition.size() > 1:
+			start_outgoing = (path[0] - start_anchor_position).normalized()
+		var start_transition := _make_junction_transition(start_anchor_position, path[0], start_outgoing, start_path_tangent)
+		if start_transition.size() > 1 and int(start_anchor["node_id"]) != start_node:
 			junction_transition_paths.append(start_transition)
-			track_edges.append({"id": next_track_edge_id, "start_node": start_junction_node, "end_node": start_node, "start_station": pending_curve_start, "end_station": pending_curve_start, "start_point": curve_start, "end_point": path[0], "kind": "transition", "parallel_group": -1, "lane_index": lane, "lane_count": 1, "centerline_spacing": 0.0})
-			_register_lane_edge(next_track_edge_id, start_junction_node, start_node)
+			track_edges.append({"id": next_track_edge_id, "start_node": int(start_anchor["node_id"]), "end_node": start_node, "start_station": pending_curve_start, "end_station": pending_curve_start, "start_point": start_anchor_position, "end_point": path[0], "kind": "transition", "parallel_group": -1, "lane_index": lane, "lane_count": 1, "centerline_spacing": 0.0})
+			_register_lane_edge(next_track_edge_id, int(start_anchor["node_id"]), start_node)
 			next_track_edge_id += 1
 
 		var end_path_tangent := (path[path.size() - 1] - path[path.size() - 2]).normalized()
-		var end_incoming := _find_connected_track_tangent(curve_end, end_path_tangent, true)
+		var end_incoming := _find_connected_track_tangent(end_anchor_position, end_path_tangent, true)
 		if end_incoming == Vector2.ZERO:
-			end_incoming = (curve_end - path[path.size() - 1]).normalized()
-		var end_transition := _make_junction_transition(path[path.size() - 1], curve_end, end_path_tangent, end_incoming)
-		if end_transition.size() > 1:
+			end_incoming = (end_anchor_position - path[path.size() - 1]).normalized()
+		var end_transition := _make_junction_transition(path[path.size() - 1], end_anchor_position, end_path_tangent, end_incoming)
+		if end_transition.size() > 1 and int(end_anchor["node_id"]) != end_node:
 			junction_transition_paths.append(end_transition)
-			track_edges.append({"id": next_track_edge_id, "start_node": end_node, "end_node": end_junction_node, "start_station": station_index, "end_station": station_index, "start_point": path[path.size() - 1], "end_point": curve_end, "kind": "transition", "parallel_group": -1, "lane_index": lane, "lane_count": 1, "centerline_spacing": 0.0})
-			_register_lane_edge(next_track_edge_id, end_node, end_junction_node)
+			track_edges.append({"id": next_track_edge_id, "start_node": end_node, "end_node": int(end_anchor["node_id"]), "start_station": station_index, "end_station": station_index, "start_point": path[path.size() - 1], "end_point": end_anchor_position, "kind": "transition", "parallel_group": -1, "lane_index": lane, "lane_count": 1, "centerline_spacing": 0.0})
+			_register_lane_edge(next_track_edge_id, end_node, int(end_anchor["node_id"]))
 			next_track_edge_id += 1
 	pending_curve_start = -1
 	pending_curve_start_node = -1
 	curve_stage = 0
 	queue_redraw()
 	hud.set_mode(build_mode, "PARALLEL CURVE CONNECTED  ·  SELECT ANOTHER START")
+
+func _resolve_parallel_curve_anchor_nodes(station_index: int, selected_node_id: int, paths: Array[PackedVector2Array], at_start: bool = true) -> Array[Dictionary]:
+	var anchors: Array[Dictionary] = [{}, {}]
+	var candidates: Array[Dictionary] = []
+	var selected_node := _get_lane_node(selected_node_id) if selected_node_id >= 0 else {}
+	var selected_group := int(selected_node.get("parallel_group", -1))
+	if selected_group >= 0:
+		for edge in _get_parallel_group_lanes(selected_group):
+			var node_id := int(edge.get("start_node", -1)) if int(edge.get("start_station", -1)) == station_index else int(edge.get("end_node", -1))
+			if node_id < 0:
+				continue
+			var node := _get_lane_node(node_id)
+			if not node.is_empty():
+				candidates.append({"node_id": node_id, "position": Vector2(node.get("position", stations[station_index]))})
+	if candidates.size() == 2:
+		# Match curve offsets to the closest corresponding existing lane endpoints.
+		var p0: Vector2 = paths[0][0] if at_start else paths[0][paths[0].size() - 1]
+		var p1: Vector2 = paths[1][0] if at_start else paths[1][paths[1].size() - 1]
+		var direct_cost := p0.distance_to(candidates[0]["position"]) + p1.distance_to(candidates[1]["position"])
+		var crossed_cost := p0.distance_to(candidates[1]["position"]) + p1.distance_to(candidates[0]["position"])
+		if crossed_cost < direct_cost:
+			candidates.reverse()
+			anchors[0] = candidates[0]
+			anchors[1] = candidates[1]
+		else:
+			anchors[0] = candidates[0]
+			anchors[1] = candidates[1]
+		return anchors
+	if selected_node_id >= 0 and not selected_node.is_empty():
+		var selected_position: Vector2 = selected_node.get("position", stations[station_index])
+		anchors[0] = {"node_id": selected_node_id, "position": selected_position}
+		anchors[1] = {"node_id": selected_node_id, "position": selected_position}
+	else:
+		var station_node := _get_or_create_lane_node(stations[station_index], station_index, 0, -1)
+		var station_anchor := {"node_id": station_node, "position": stations[station_index]}
+		anchors[0] = station_anchor
+		anchors[1] = station_anchor
+	return anchors
+
 
 func _make_junction_transition(start_point: Vector2, end_point: Vector2, start_tangent: Vector2, end_tangent: Vector2) -> PackedVector2Array:
 	var result := PackedVector2Array()
