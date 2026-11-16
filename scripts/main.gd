@@ -35,6 +35,7 @@ var curve_segments: Array[Dictionary] = []
 var parallel_curve_segments: Array[Dictionary] = []
 var pending_track_start := -1
 var pending_track_start_node := -1
+var pending_track_start_position := Vector2.ZERO
 var pending_curve_start := -1
 var pending_curve_control := Vector2.ZERO
 var curve_stage := 0
@@ -197,35 +198,42 @@ func _handle_map_tap(_screen_position: Vector2) -> void:
 		var lane_node_id := _find_lane_node_near_screen(crosshair_screen) if build_mode == "track" else -1
 		var station_index := -1
 		var target_position := get_snapped_world_position(crosshair_screen)
+		var has_anchor := false
 		if lane_node_id >= 0:
 			var lane_node := _get_lane_node(lane_node_id)
 			station_index = int(lane_node.get("station_index", -1))
 			target_position = Vector2(lane_node.get("position", target_position))
+			has_anchor = true
 		else:
 			station_index = _find_station_near_screen(crosshair_screen)
 			if station_index >= 0:
 				target_position = stations[station_index]
-		if station_index == -1:
-			hud.set_mode(build_mode, "ALIGN THE CROSSHAIR WITH A STATION OR LANE NODE")
+				has_anchor = true
+		if not has_anchor:
+			hud.set_mode(build_mode, "ALIGN THE CROSSHAIR WITH A STATION, WAYPOINT OR LANE NODE")
 			return
-		if pending_track_start == -1:
+		if pending_track_start == -1 and pending_track_start_node == -1:
 			pending_track_start = station_index
 			pending_track_start_node = lane_node_id
+			pending_track_start_position = target_position
 			hud.set_mode(build_mode, "START SELECTED  ·  ALIGN CROSSHAIR WITH ANOTHER NODE")
 		elif station_index == pending_track_start and lane_node_id == pending_track_start_node:
 			hud.set_mode(build_mode, "SAME NODE  ·  CHOOSE A DIFFERENT CONNECTION")
 		else:
 			var start_station := pending_track_start
-			var start_fallback: Vector2 = stations[start_station]
-			var start_position := _get_lane_node_position(pending_track_start_node, start_fallback)
+			var start_position := pending_track_start_position
 			if build_mode == "parallel":
-				_add_parallel_track_pair(start_station, station_index)
+				if start_station >= 0 and station_index >= 0:
+					_add_parallel_track_pair(start_station, station_index)
+				else:
+					hud.set_mode(build_mode, "PARALLEL TRACKS CURRENTLY REQUIRE STATION ENDPOINTS")
 			else:
 				_add_track_edge(start_station, station_index, start_position, target_position, "single", -1, 0, 1, 0.0)
 			pending_track_start = -1
 			pending_track_start_node = -1
+			pending_track_start_position = Vector2.ZERO
 			queue_redraw()
-			hud.set_mode(build_mode, "TRACKS CONNECTED  ·  SELECT ANOTHER START" if build_mode == "parallel" else "TRACK CONNECTED  ·  SELECT ANOTHER START")
+			hud.set_mode(build_mode, "TRACK CONNECTED  ·  SELECT ANOTHER START")
 
 func _handle_waypoint_tap(screen_position: Vector2) -> void:
 	# WAYPOINT is a free placement tool, like STATION. Markers are persistent
@@ -236,9 +244,13 @@ func _handle_waypoint_tap(screen_position: Vector2) -> void:
 			hud.set_mode(build_mode, "WAYPOINT ALREADY PLACED NEARBY")
 			return
 	waypoint_markers.append(waypoint_position)
+	# A waypoint is a routable graph anchor, not a passenger station.
+	# Its lane node uses station_index -1 so track tools can snap to it
+	# without creating a station marker or station-to-station dependency.
+	_get_or_create_lane_node(waypoint_position, -1, 0, -1)
 	queue_redraw()
 	_update_coordinate_readout()
-	hud.set_mode(build_mode, "WAYPOINT PLACED  ·  PLACE ANOTHER OR SELECT A ROUTING TOOL")
+	hud.set_mode(build_mode, "WAYPOINT PLACED  ·  TRACKS CAN SNAP TO THIS POINT")
 
 func _make_waypoint_route(route_points: Array[Vector2]) -> PackedVector2Array:
 	var result := PackedVector2Array()
@@ -727,7 +739,7 @@ func _add_track_edge(start_station: int, end_station: int, start_point: Vector2,
 	var draw_end := end_point
 	# Explicit lane-node connections already identify their exact centerline
 	# endpoints. Do not let the legacy station-level merge heuristic move them.
-	if kind == "single" and start_point.distance_to(stations[start_station]) <= 0.5 and end_point.distance_to(stations[end_station]) <= 0.5:
+	if kind == "single" and start_station >= 0 and end_station >= 0 and start_station < stations.size() and end_station < stations.size() and start_point.distance_to(stations[start_station]) <= 0.5 and end_point.distance_to(stations[end_station]) <= 0.5:
 		var merge_data := _build_parallel_merge_transition(start_station, end_station, start_point, end_point)
 		if not merge_data.is_empty():
 			draw_start = merge_data["draw_start"]
@@ -1087,7 +1099,7 @@ func _select_track_mode() -> void:
 	pending_track_start = -1
 	pending_curve_start = -1
 	curve_stage = 0
-	hud.set_mode(build_mode, "TAP TWO STATIONS TO CONNECT ONE TRACK" if build_mode == "track" else "DRAG TO MOVE  ·  PINCH TO ZOOM")
+	hud.set_mode(build_mode, "TAP TWO STATIONS, WAYPOINTS OR LANE NODES TO CONNECT ONE TRACK" if build_mode == "track" else "DRAG TO MOVE  ·  PINCH TO ZOOM")
 
 func _select_parallel_mode() -> void:
 	build_mode = "" if build_mode == "parallel" else "parallel"
