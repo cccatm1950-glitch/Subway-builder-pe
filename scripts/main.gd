@@ -281,12 +281,12 @@ func _handle_waypoint_tap(screen_position: Vector2) -> void:
 			})
 			_register_lane_edge(next_track_edge_id, start_node, end_node)
 			next_track_edge_id += 1
-	pending_curve_start = -1
-	pending_waypoint_start_node = -1
-	pending_waypoints.clear()
-	queue_redraw()
-	hud.set_mode(build_mode, "WAYPOINT ROUTE CONNECTED  ·  SELECT ANOTHER START")
-	return
+		pending_curve_start = -1
+		pending_waypoint_start_node = -1
+		pending_waypoints.clear()
+		queue_redraw()
+		hud.set_mode(build_mode, "WAYPOINT ROUTE CONNECTED  ·  SELECT ANOTHER START")
+		return
 
 	var waypoint := get_snapped_world_position(screen_position)
 	if pending_waypoints.is_empty() or pending_waypoints[pending_waypoints.size() - 1].distance_to(waypoint) >= SNAP_SPACING:
