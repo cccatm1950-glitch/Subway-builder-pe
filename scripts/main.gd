@@ -646,17 +646,6 @@ func _build_parallel_merge_transition(start_station: int, end_station: int, star
 		return {"draw_start": merge_point, "draw_end": end_point, "paths": paths}
 	return {"draw_start": start_point, "draw_end": merge_point, "paths": paths}
 
-func _get_parallel_groups_at_station(station_index: int) -> Array[int]:
-	var groups: Array[int] = []
-	for edge in track_edges:
-		if int(edge.get("parallel_group", -1)) < 0:
-			continue
-		if int(edge.get("start_station", -1)) == station_index or int(edge.get("end_station", -1)) == station_index:
-			var group_id := int(edge.get("parallel_group", -1))
-			if not groups.has(group_id):
-				groups.append(group_id)
-	return groups
-
 func _add_parallel_track_pair(start_station: int, end_station: int) -> void:
 	var start_point: Vector2 = stations[start_station]
 	var end_point: Vector2 = stations[end_station]
