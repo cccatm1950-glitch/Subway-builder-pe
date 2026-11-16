@@ -21,6 +21,7 @@ var track_segments: Array[Vector2] = []
 var waypoint_paths: Array[PackedVector2Array] = []
 var pending_waypoints: Array[Vector2] = []
 var pending_waypoint_start_node := -1
+var pending_curve_start_node := -1
 # Topology records keep station connectivity and future parallel-lane metadata
 # separate from the legacy endpoint array used by current drawing code.
 var track_edges: Array[Dictionary] = []
@@ -383,84 +384,108 @@ func _draw_waypoint_preview() -> void:
 		draw_arc(point, 13.0 / camera.zoom.x, 0.0, TAU, 24, Color(0.65, 1.0, 0.95, 1.0), 2.0 / camera.zoom.x, true)
 
 func _handle_curve_tap(screen_position: Vector2) -> void:
+	var lane_node_id := _find_lane_node_near_screen(screen_position)
+	var station_index := -1
+	var endpoint := get_snapped_world_position(screen_position)
+	if lane_node_id >= 0:
+		var node := _get_lane_node(lane_node_id)
+		station_index = int(node.get("station_index", -1))
+		endpoint = Vector2(node.get("position", endpoint))
+	else:
+		station_index = _find_station_near_screen(screen_position)
+		if station_index >= 0:
+			endpoint = stations[station_index]
 	if curve_stage == 0:
-		var station_index := _find_station_near_screen(screen_position)
-		if station_index == -1:
-			hud.set_mode(build_mode, "SELECT AN EXISTING START STATION")
+		if station_index < 0:
+			hud.set_mode(build_mode, "SELECT A START STATION OR LANE NODE")
 			return
 		pending_curve_start = station_index
+		pending_curve_start_node = lane_node_id
 		curve_stage = 1
-		var start_screen: Vector2 = get_viewport().get_canvas_transform() * stations[station_index]
+		var start_screen: Vector2 = get_viewport().get_canvas_transform() * endpoint
 		var center := get_viewport_rect().size * 0.5
 		var direction := (center - start_screen).normalized()
 		if direction.length_squared() < 0.01:
 			direction = Vector2.RIGHT
 		var normal := Vector2(-direction.y, direction.x)
 		pending_curve_control = screen_to_world(start_screen + direction * 90.0 + normal * 55.0)
-		hud.set_mode(build_mode, "DRAG THE CURVE HANDLE TO SHAPE THE BEND")
+		hud.set_mode(build_mode, "DRAG THE CURVE HANDLE  ·  TAP END NODE")
 		queue_redraw()
-	else:
-		var end_index := _find_station_near_screen(screen_position)
-		if end_index == -1:
-			hud.set_mode(build_mode, "TAP AN EXISTING END STATION")
-			return
-		if end_index == pending_curve_start:
-			hud.set_mode(build_mode, "CHOOSE A DIFFERENT END STATION")
-			return
-		var curve_start: Vector2 = stations[pending_curve_start]
-		var curve_end: Vector2 = stations[end_index]
-		var curve_control := _constrain_curve_control(curve_start, pending_curve_control, curve_end)
-		curve_segments.append({"start": curve_start, "control": curve_control, "end": curve_end})
-		pending_curve_start = -1
-		curve_stage = 0
-		queue_redraw()
-		hud.set_mode(build_mode, "CURVE CONNECTED  ·  SELECT ANOTHER START")
+		return
+	if station_index < 0 or (station_index == pending_curve_start and lane_node_id == pending_curve_start_node):
+		hud.set_mode(build_mode, "TAP A DIFFERENT END STATION OR LANE NODE")
+		return
+	var start_fallback: Vector2 = stations[pending_curve_start]
+	var curve_start := _get_lane_node_position(pending_curve_start_node, start_fallback)
+	var curve_end := endpoint
+	var curve_control := _constrain_curve_control(curve_start, pending_curve_control, curve_end)
+	var start_node := pending_curve_start_node
+	if start_node < 0:
+		start_node = _get_or_create_lane_node(curve_start, pending_curve_start, 0, -1)
+	var end_node := lane_node_id
+	if end_node < 0:
+		end_node = _get_or_create_lane_node(curve_end, station_index, 0, -1)
+	curve_segments.append({"start": curve_start, "control": curve_control, "end": curve_end, "start_node": start_node, "end_node": end_node, "start_station": pending_curve_start, "end_station": station_index})
+	track_edges.append({"id": next_track_edge_id, "start_node": start_node, "end_node": end_node, "start_station": pending_curve_start, "end_station": station_index, "start_point": curve_start, "end_point": curve_end, "kind": "curve", "parallel_group": -1, "lane_index": 0, "lane_count": 1, "centerline_spacing": 0.0})
+	_register_lane_edge(next_track_edge_id, start_node, end_node)
+	next_track_edge_id += 1
+	pending_curve_start = -1
+	pending_curve_start_node = -1
+	curve_stage = 0
+	queue_redraw()
+	hud.set_mode(build_mode, "CURVE CONNECTED  ·  SELECT ANOTHER START")
 
 func _handle_parallel_curve_tap(screen_position: Vector2) -> void:
+	var lane_node_id := _find_lane_node_near_screen(screen_position)
+	var station_index := -1
+	var endpoint := get_snapped_world_position(screen_position)
+	if lane_node_id >= 0:
+		var node := _get_lane_node(lane_node_id)
+		station_index = int(node.get("station_index", -1))
+		endpoint = Vector2(node.get("position", endpoint))
+	else:
+		station_index = _find_station_near_screen(screen_position)
+		if station_index >= 0:
+			endpoint = stations[station_index]
 	if curve_stage == 0:
-		var station_index := _find_station_near_screen(screen_position)
-		if station_index == -1:
-			hud.set_mode(build_mode, "SELECT AN EXISTING START STATION")
+		if station_index < 0:
+			hud.set_mode(build_mode, "SELECT A START STATION OR LANE NODE")
 			return
 		pending_curve_start = station_index
+		pending_curve_start_node = lane_node_id
 		curve_stage = 1
-		var start_screen: Vector2 = get_viewport().get_canvas_transform() * stations[station_index]
+		var start_screen: Vector2 = get_viewport().get_canvas_transform() * endpoint
 		var center := get_viewport_rect().size * 0.5
 		var direction := (center - start_screen).normalized()
 		if direction.length_squared() < 0.01:
 			direction = Vector2.RIGHT
 		var normal := Vector2(-direction.y, direction.x)
 		pending_curve_control = screen_to_world(start_screen + direction * 90.0 + normal * 55.0)
-		hud.set_mode(build_mode, "DRAG SHARED HANDLE  ·  TAP END STATION")
+		hud.set_mode(build_mode, "DRAG SHARED HANDLE  ·  TAP END NODE")
 		queue_redraw()
 		return
-	var end_index := _find_station_near_screen(screen_position)
-	if end_index == -1:
-		hud.set_mode(build_mode, "TAP AN EXISTING END STATION")
+	if station_index < 0 or (station_index == pending_curve_start and lane_node_id == pending_curve_start_node):
+		hud.set_mode(build_mode, "TAP A DIFFERENT END STATION OR LANE NODE")
 		return
-	if end_index == pending_curve_start:
-		hud.set_mode(build_mode, "CHOOSE A DIFFERENT END STATION")
-		return
-	var curve_start: Vector2 = stations[pending_curve_start]
-	var curve_end: Vector2 = stations[end_index]
+	var start_fallback: Vector2 = stations[pending_curve_start]
+	var curve_start := _get_lane_node_position(pending_curve_start_node, start_fallback)
+	var curve_end := endpoint
 	var control := _constrain_curve_control(curve_start, pending_curve_control, curve_end)
 	var pair := _offset_parallel_curve(_make_curve_points(curve_start, control, curve_end), PARALLEL_CENTERLINE_SPACING * 0.5)
 	if pair.size() != 2 or pair[0].size() < 2 or pair[1].size() < 2:
 		hud.set_mode(build_mode, "COULD NOT CREATE PARALLEL CURVE")
 		return
-	parallel_curve_segments.append({"paths": pair, "start_station": pending_curve_start, "end_station": end_index, "control": control, "group_id": next_track_edge_id})
 	var group_id := next_track_edge_id
+	parallel_curve_segments.append({"paths": pair, "start_station": pending_curve_start, "end_station": station_index, "start_point": curve_start, "end_point": curve_end, "start_node": pending_curve_start_node, "end_node": lane_node_id, "control": control, "group_id": group_id})
 	for lane in range(2):
 		var path: PackedVector2Array = pair[lane]
-		# Join each offset curve endpoint back to the shared station marker.
-		junction_transition_paths.append(PackedVector2Array([curve_start, path[0]]))
-		junction_transition_paths.append(PackedVector2Array([curve_end, path[path.size() - 1]]))
 		var start_node := _get_or_create_lane_node(path[0], pending_curve_start, lane, group_id)
-		var end_node := _get_or_create_lane_node(path[path.size() - 1], end_index, lane, group_id)
-		track_edges.append({"id": next_track_edge_id, "start_node": start_node, "end_node": end_node, "start_station": pending_curve_start, "end_station": end_index, "start_point": path[0], "end_point": path[path.size() - 1], "kind": "parallel_curve", "parallel_group": group_id, "lane_index": lane, "lane_count": 2, "centerline_spacing": PARALLEL_CENTERLINE_SPACING})
+		var end_node := _get_or_create_lane_node(path[path.size() - 1], station_index, lane, group_id)
+		track_edges.append({"id": next_track_edge_id, "start_node": start_node, "end_node": end_node, "start_station": pending_curve_start, "end_station": station_index, "start_point": path[0], "end_point": path[path.size() - 1], "kind": "parallel_curve", "parallel_group": group_id, "lane_index": lane, "lane_count": 2, "centerline_spacing": PARALLEL_CENTERLINE_SPACING})
 		_register_lane_edge(next_track_edge_id, start_node, end_node)
 		next_track_edge_id += 1
 	pending_curve_start = -1
+	pending_curve_start_node = -1
 	curve_stage = 0
 	queue_redraw()
 	hud.set_mode(build_mode, "PARALLEL CURVE CONNECTED  ·  SELECT ANOTHER START")
