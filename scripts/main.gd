@@ -815,6 +815,11 @@ func _add_parallel_track_pair_from_anchors(start_station: int, end_station: int,
 	for lane in range(2):
 		var lane_start := _get_or_create_lane_node(lane_starts[lane], start_station, lane, group_id)
 		var lane_end := _get_or_create_lane_node(lane_ends[lane], end_station, lane, group_id)
+		# Parallel lanes are stored as graph edges, but the renderer also
+		# consumes the legacy segment list. Register both endpoints so the
+		# two visible centerlines are drawn as well as their orange nodes.
+		track_segments.append(lane_starts[lane])
+		track_segments.append(lane_ends[lane])
 		track_edges.append({"id": next_track_edge_id, "start_node": lane_start, "end_node": lane_end, "start_station": start_station, "end_station": end_station, "start_point": lane_starts[lane], "end_point": lane_ends[lane], "kind": "parallel", "parallel_group": group_id, "lane_index": lane, "lane_count": 2, "centerline_spacing": PARALLEL_CENTERLINE_SPACING})
 		_register_lane_edge(next_track_edge_id, lane_start, lane_end)
 		next_track_edge_id += 1
@@ -937,6 +942,12 @@ func _find_connected_track_tangent(endpoint_position: Vector2, preferred_directi
 	var best_tangent := Vector2.ZERO
 	var best_alignment := -INF
 	for edge in track_edges:
+		# Do not use another curved edge (including the curve currently being
+		# drawn) as the reference tangent. Straight and parallel approaches
+		# define the turnout alignment; otherwise curve geometry can become
+		# dependent on the order in which additional edges are added.
+		if String(edge.get("kind", "")) == "curve":
+			continue
 		var is_start := int(edge.get("start_node", -1)) == endpoint_node
 		var is_end := int(edge.get("end_node", -1)) == endpoint_node
 		if not is_start and not is_end:
@@ -1139,7 +1150,7 @@ func _draw_parallel_curve_preview() -> void:
 	draw_arc(control, 27.0 / camera.zoom.x, 0.0, TAU, 40, Color(0.72, 1.0, 0.97, 1.0), 3.0 / camera.zoom.x, true)
 
 func _draw_curve_preview() -> void:
-	var start_fallback: Vector2 = stations[pending_curve_start]
+	var start_fallback: Vector2 = stations[pending_curve_start] if pending_curve_start >= 0 and pending_curve_start < stations.size() else Vector2.ZERO
 	var start_point := _get_lane_node_position(pending_curve_start_node, start_fallback)
 	var end_point := _get_curve_preview_endpoint()
 	var points := _make_curve_points(start_point, pending_curve_control, end_point)
