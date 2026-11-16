@@ -31,6 +31,7 @@ var next_track_edge_id := 1
 var curve_segments: Array[Dictionary] = []
 var parallel_curve_segments: Array[Dictionary] = []
 var pending_track_start := -1
+var pending_track_start_node := -1
 var pending_curve_start := -1
 var pending_curve_control := Vector2.ZERO
 var curve_stage := 0
@@ -190,23 +191,36 @@ func _handle_map_tap(_screen_position: Vector2) -> void:
 			queue_redraw()
 		_update_coordinate_readout()
 	elif build_mode == "track" or build_mode == "parallel":
-		var station_index := _find_station_near_screen(crosshair_screen)
+		var lane_node_id := _find_lane_node_near_screen(crosshair_screen) if build_mode == "track" else -1
+		var station_index := -1
+		var target_position := get_snapped_world_position(crosshair_screen)
+		if lane_node_id >= 0:
+			var lane_node := _get_lane_node(lane_node_id)
+			station_index = int(lane_node.get("station_index", -1))
+			target_position = Vector2(lane_node.get("position", target_position))
+		else:
+			station_index = _find_station_near_screen(crosshair_screen)
+			if station_index >= 0:
+				target_position = stations[station_index]
 		if station_index == -1:
-			hud.set_mode(build_mode, "ALIGN THE CROSSHAIR WITH A STATION OR TRACK NODE")
+			hud.set_mode(build_mode, "ALIGN THE CROSSHAIR WITH A STATION OR LANE NODE")
 			return
 		if pending_track_start == -1:
 			pending_track_start = station_index
+			pending_track_start_node = lane_node_id
 			hud.set_mode(build_mode, "START SELECTED  ·  ALIGN CROSSHAIR WITH ANOTHER NODE")
-		elif station_index == pending_track_start:
-			hud.set_mode(build_mode, "SAME STATION  ·  CHOOSE A DIFFERENT NODE")
+		elif station_index == pending_track_start and lane_node_id == pending_track_start_node:
+			hud.set_mode(build_mode, "SAME NODE  ·  CHOOSE A DIFFERENT CONNECTION")
 		else:
 			var start_station := pending_track_start
-			var end_station := station_index
+			var start_fallback: Vector2 = stations[start_station]
+			var start_position := _get_lane_node_position(pending_track_start_node, start_fallback)
 			if build_mode == "parallel":
-				_add_parallel_track_pair(start_station, end_station)
+				_add_parallel_track_pair(start_station, station_index)
 			else:
-				_add_track_edge(start_station, end_station, stations[start_station], stations[end_station], "single", -1, 0, 1, 0.0)
+				_add_track_edge(start_station, station_index, start_position, target_position, "single", -1, 0, 1, 0.0)
 			pending_track_start = -1
+			pending_track_start_node = -1
 			queue_redraw()
 			hud.set_mode(build_mode, "TRACKS CONNECTED  ·  SELECT ANOTHER START" if build_mode == "parallel" else "TRACK CONNECTED  ·  SELECT ANOTHER START")
 
@@ -915,6 +929,28 @@ func _select_curve_mode() -> void:
 	hud.set_mode(build_mode, "SELECT START STATION" if build_mode == "curve" else "DRAG TO MOVE  ·  PINCH TO ZOOM")
 	queue_redraw()
 
+func _find_lane_node_near_screen(screen_position: Vector2) -> int:
+	var nearest_id := -1
+	var nearest_distance := STATION_PICK_RADIUS * 0.55
+	var canvas_transform := get_viewport().get_canvas_transform()
+	for node in lane_nodes:
+		var node_screen: Vector2 = canvas_transform * Vector2(node.get("position", Vector2.ZERO))
+		var distance := node_screen.distance_to(screen_position)
+		if distance <= nearest_distance:
+			nearest_distance = distance
+			nearest_id = int(node.get("id", -1))
+	return nearest_id
+
+func _get_lane_node(node_id: int) -> Dictionary:
+	for node in lane_nodes:
+		if int(node.get("id", -1)) == node_id:
+			return node
+	return {}
+
+func _get_lane_node_position(node_id: int, fallback: Vector2) -> Vector2:
+	var node := _get_lane_node(node_id)
+	return Vector2(node.get("position", fallback))
+
 func _find_station_near_screen(screen_position: Vector2) -> int:
 	var nearest_index := -1
 	var nearest_distance := STATION_PICK_RADIUS
@@ -992,6 +1028,11 @@ func _draw() -> void:
 			draw_circle(handle, 19.0 / zoom_scale, Color(0.08, 0.22, 0.23, 0.98))
 			draw_circle(handle, 10.0 / zoom_scale, Color(0.55, 1.0, 0.94, 0.98))
 			draw_arc(handle, 27.0 / zoom_scale, 0.0, TAU, 40, Color(0.72, 1.0, 0.97, 1.0), 3.0 / zoom_scale, true)
+	# Orange endpoint markers expose the selectable centerline graph nodes.
+	for node in lane_nodes:
+		var node_position: Vector2 = node.get("position", Vector2.ZERO)
+		draw_circle(node_position, 5.5, Color(1.0, 0.48, 0.16, 0.95))
+		draw_arc(node_position, 9.0, 0.0, TAU, 24, Color(1.0, 0.68, 0.32, 0.9), 1.5, true)
 	for index in range(stations.size()):
 		var station := stations[index]
 		draw_circle(station, 12.0, Color(0.88, 0.96, 1.0))
@@ -1037,8 +1078,7 @@ func _draw_curve_preview() -> void:
 
 func _draw_track_preview() -> void:
 	var viewport_size := get_viewport_rect().size
-	var preview_end := get_snapped_world_position(viewport_size * 0.5)
-	var preview_start: Vector2 = stations[pending_track_start]
+		var preview_start: Vector2 = stations[pending_track_start]
 	if build_mode == "parallel":
 		var direction := (preview_end - preview_start).normalized()
 		if direction != Vector2.ZERO:
