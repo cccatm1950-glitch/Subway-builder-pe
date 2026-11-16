@@ -243,6 +243,7 @@ func _handle_waypoint_tap(screen_position: Vector2) -> void:
 				"lane_count": 1,
 				"centerline_spacing": 0.0
 			})
+			_register_lane_edge(next_track_edge_id, start_node, end_node)
 			next_track_edge_id += 1
 		pending_curve_start = -1
 		pending_waypoints.clear()
@@ -370,6 +371,7 @@ func _handle_parallel_curve_tap(screen_position: Vector2) -> void:
 		var start_node := _get_or_create_lane_node(path[0], pending_curve_start, lane, group_id)
 		var end_node := _get_or_create_lane_node(path[path.size() - 1], end_index, lane, group_id)
 		track_edges.append({"id": next_track_edge_id, "start_node": start_node, "end_node": end_node, "start_station": pending_curve_start, "end_station": end_index, "start_point": path[0], "end_point": path[path.size() - 1], "kind": "parallel_curve", "parallel_group": group_id, "lane_index": lane, "lane_count": 2, "centerline_spacing": PARALLEL_CENTERLINE_SPACING})
+		_register_lane_edge(next_track_edge_id, start_node, end_node)
 		next_track_edge_id += 1
 	pending_curve_start = -1
 	curve_stage = 0
@@ -564,6 +566,15 @@ func _set_lane_node_position(node_id: int, position: Vector2) -> void:
 			lane_nodes[index]["position"] = position
 			return
 
+func _register_lane_edge(edge_id: int, start_node: int, end_node: int) -> void:
+	for index in range(lane_nodes.size()):
+		var node_id := int(lane_nodes[index].get("id", -1))
+		if node_id == start_node or node_id == end_node:
+			var incident_edges: Array = lane_nodes[index].get("edge_ids", [])
+			if not incident_edges.has(edge_id):
+				incident_edges.append(edge_id)
+			lane_nodes[index]["edge_ids"] = incident_edges
+
 
 func _add_track_edge(start_station: int, end_station: int, start_point: Vector2, end_point: Vector2, kind: String, parallel_group: int, lane_index: int, lane_count: int, spacing: float) -> void:
 	var draw_start := start_point
@@ -593,6 +604,7 @@ func _add_track_edge(start_station: int, end_station: int, start_point: Vector2,
 		"lane_count": lane_count,
 		"centerline_spacing": spacing
 	})
+	_register_lane_edge(next_track_edge_id, start_node, end_node)
 	next_track_edge_id += 1
 
 func _build_parallel_merge_transition(start_station: int, end_station: int, start_point: Vector2, end_point: Vector2) -> Dictionary:
