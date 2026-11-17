@@ -1003,16 +1003,27 @@ func _build_parallel_merge_transition(start_station: int, end_station: int, star
 		var through_point: Vector2 = lane_endpoints[through_lane]
 		var merging_point: Vector2 = lane_endpoints[merge_lane]
 		# Continue the retained lane forward; convergence happens beyond
-		# the station, not back at the station marker itself.
+		# the station, not back at the station marker itself. Preserve each
+		# existing lane's local endpoint heading so curved approaches do not
+		# kink into a straight chord at the merge.
 		merge_point = through_point + outward_direction * merge_length
-		var first_control := merging_point + outward_direction * (merge_length * 0.38)
-		var second_control := merge_point - outward_direction * (merge_length * 0.24)
-		# The retained lane must continue into the same merge node as the
-		# converging lane. Previously it ended at the station while the new
-		# single track began beyond it, leaving a visible but disconnected gap.
-		var through_path := PackedVector2Array([through_point, merge_point])
+		var through_tangent := _find_connected_track_tangent(through_point, outward_direction, false)
+		if through_tangent == Vector2.ZERO:
+			through_tangent = outward_direction
+		var merging_tangent := _find_connected_track_tangent(merging_point, outward_direction, false)
+		if merging_tangent == Vector2.ZERO:
+			merging_tangent = outward_direction
+		# The retained lane and converging lane both terminate at the exact
+		# same graph node. Their transition paths are sampled curves, not
+		# visual-only station connector strokes.
+		var through_path := _make_junction_transition(through_point, merge_point, through_tangent, outward_direction)
+		if through_path.size() < 2:
+			return {}
 		paths.append(through_path)
 		var merge_path := PackedVector2Array()
+		var merge_handle := minf(merge_length * 0.38, merging_point.distance_to(merge_point) * 0.42)
+		var first_control := merging_point + merging_tangent * merge_handle
+		var second_control := merge_point - outward_direction * (merge_length * 0.24)
 		for step in range(41):
 			var t := float(step) / 40.0
 			var u := 1.0 - t
