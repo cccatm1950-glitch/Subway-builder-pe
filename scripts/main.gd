@@ -45,6 +45,7 @@ var pending_curve_control := Vector2.ZERO
 var curve_stage := 0
 var mouse_pointer_down := false
 var mouse_pointer_start := Vector2.ZERO
+var mouse_pointer_last_position := Vector2.ZERO
 var mouse_pointer_dragged := false
 var curve_handle_dragging := false
 var curve_handle_touch_index := -1
@@ -81,7 +82,12 @@ func _input(event: InputEvent) -> void:
 		if mouse_pointer_down:
 			if event.position.distance_to(mouse_pointer_start) > TAP_DRAG_THRESHOLD:
 				mouse_pointer_dragged = true
-			_pan_camera(event.relative)
+			var pan_delta := event.position - mouse_pointer_last_position
+			if pan_delta.is_zero_approx():
+				pan_delta = event.relative
+			mouse_pointer_last_position = event.position
+			if not pan_delta.is_zero_approx():
+				_pan_camera(pan_delta)
 			hud.set_input_status("MOUSE DRAG")
 
 func _handle_screen_touch(event: InputEventScreenTouch) -> void:
@@ -140,12 +146,17 @@ func _handle_screen_drag(event: InputEventScreenDrag) -> void:
 		return
 	if not active_touches.has(event.index):
 		return
+	var previous_position: Vector2 = active_touches[event.index]
+	var pan_delta := event.position - previous_position
 	active_touches[event.index] = event.position
 	var start: Vector2 = touch_starts.get(event.index, event.position)
 	if event.position.distance_to(start) > TAP_DRAG_THRESHOLD:
 		touch_moved[event.index] = true
 	if active_touches.size() == 1:
-		_pan_camera(event.relative)
+		if pan_delta.is_zero_approx():
+			pan_delta = event.relative
+		if not pan_delta.is_zero_approx():
+			_pan_camera(pan_delta)
 		hud.set_input_status("MAP DRAG")
 	elif active_touches.size() >= 2:
 		_update_pinch_zoom()
@@ -164,6 +175,7 @@ func _handle_mouse_button(event: InputEventMouseButton) -> void:
 				return
 			mouse_pointer_down = true
 			mouse_pointer_start = event.position
+			mouse_pointer_last_position = event.position
 			mouse_pointer_dragged = false
 			hud.set_input_status("POINTER DOWN")
 		else:
