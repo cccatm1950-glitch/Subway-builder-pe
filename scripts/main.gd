@@ -3,6 +3,7 @@ extends Node2D
 const MIN_ZOOM := 0.45
 const MAX_ZOOM := 2.5
 const TrackGraphScript = preload("res://scripts/railway/track_graph.gd")
+const TrackGeometryScript = preload("res://scripts/railway/track_geometry.gd")
 const SNAP_SPACING := 32.0
 const TAP_DRAG_THRESHOLD := 16.0
 const STATION_PICK_RADIUS := 64.0
@@ -499,37 +500,9 @@ func _make_junction_transition(start_point: Vector2, end_point: Vector2, start_t
 	return result
 
 func _offset_parallel_curve(centerline: PackedVector2Array, half_spacing: float) -> Array[PackedVector2Array]:
-	var first := PackedVector2Array()
-	var second := PackedVector2Array()
-	if centerline.size() < 2:
-		return [first, second]
-
-	var segment_normals: Array[Vector2] = []
-	for index in range(centerline.size() - 1):
-		var segment := centerline[index + 1] - centerline[index]
-		if segment.length_squared() < 0.0001:
-			return []
-		var tangent := segment.normalized()
-		segment_normals.append(Vector2(-tangent.y, tangent.x))
-
-	for index in range(centerline.size()):
-		var offset_normal: Vector2
-		if index == 0:
-			offset_normal = segment_normals[0]
-		elif index == centerline.size() - 1:
-			offset_normal = segment_normals[segment_normals.size() - 1]
-		else:
-			var normal_sum := segment_normals[index - 1] + segment_normals[index]
-			if normal_sum.length_squared() < 0.0001:
-				return []
-			offset_normal = normal_sum.normalized()
-		# Keep the two lane centerlines exactly one full spacing apart at
-		# every sampled point. The centerline is densely sampled, so averaging
-		# adjacent normals avoids the exaggerated miter spread at tight bends.
-		var offset := offset_normal * half_spacing
-		first.append(centerline[index] + offset)
-		second.append(centerline[index] - offset)
-	return [first, second]
+	# Use the shared geometry module so straight and curved parallel placement
+	# follow the same signed-offset and miter rules.
+	return TrackGeometryScript.make_parallel_pair(centerline, half_spacing * 2.0)
 
 func _try_begin_curve_handle_drag(screen_position: Vector2, touch_index: int) -> bool:
 	if curve_handle_dragging:
