@@ -699,7 +699,6 @@ func _make_curve_points(start_point: Vector2, control_point: Vector2, end_point:
 		var heading1 := start_heading + heading_change * smooth1 + bow_angle * bow1 * bow1
 		# Heun's (modified Euler) step for the planar tangent field.
 		var direction0 := Vector2(cos(heading0), sin(heading0))
-		var predictor := position + direction0 * step_length
 		var direction1 := Vector2(cos(heading1), sin(heading1))
 		position += (direction0 + direction1) * (0.5 * step_length)
 		points.append(position)
