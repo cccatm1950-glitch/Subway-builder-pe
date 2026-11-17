@@ -1000,13 +1000,9 @@ func _build_parallel_merge_transition(start_station: int, end_station: int, star
 		var lane_point: Vector2 = lane_endpoints[selected_lane]
 		var switch_length := minf(merge_length, lane_point.distance_to(merge_point) + merge_length * 0.35)
 		var switch_end := merge_point
-		var first_control := lane_point + neighbor_direction * (switch_length * 0.34)
-		var second_control := switch_end - outward_direction * (switch_length * 0.34)
-		var turnout := PackedVector2Array()
-		for step in range(41):
-			var t := float(step) / 40.0
-			var u := 1.0 - t
-			turnout.append(u * u * u * lane_point + 3.0 * u * u * t * first_control + 3.0 * u * t * t * second_control + t * t * t * switch_end)
+		var turnout := JunctionEngineScript.build_turnout_path(lane_point, switch_end, neighbor_direction, outward_direction, switch_length * 0.34, 40)
+		if turnout.size() < 2:
+			return {}
 		paths.append(turnout)
 	else:
 		# True parallel-to-single merge: keep one existing lane as the
