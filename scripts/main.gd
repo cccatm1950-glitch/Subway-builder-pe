@@ -94,7 +94,7 @@ func _input(event: InputEvent) -> void:
 		_handle_screen_drag(event)
 	elif event is InputEventMouseButton:
 		_handle_mouse_button(event)
-	elif event is InputEventMouseMotion and (event.button_mask & MOUSE_BUTTON_MASK_LEFT) != 0:
+	elif event is InputEventMouseMotion and (mouse_pointer_down or (event.button_mask & MOUSE_BUTTON_MASK_LEFT) != 0):
 		if curve_handle_dragging and curve_handle_touch_index == -2:
 			_move_curve_handle(event.position)
 			queue_redraw()
