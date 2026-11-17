@@ -28,3 +28,19 @@ static func select_branch_lane_index(lane_positions: Array[Vector2], origin: Vec
 	if best_score <= epsilon:
 		return -1
 	return best_index
+
+static func build_turnout_path(start: Vector2, finish: Vector2, start_direction: Vector2, finish_direction: Vector2, handle_length: float, sample_count: int = 40) -> PackedVector2Array:
+	var result := PackedVector2Array()
+	if start.distance_squared_to(finish) <= EPSILON * EPSILON:
+		return result
+	if start_direction.length_squared() <= EPSILON * EPSILON or finish_direction.length_squared() <= EPSILON * EPSILON:
+		return result
+	var count := maxi(sample_count, 2)
+	var handle := maxf(handle_length, 0.0)
+	var first_control := start + start_direction.normalized() * handle
+	var second_control := finish - finish_direction.normalized() * handle
+	for step in range(count + 1):
+		var t := float(step) / float(count)
+		var u := 1.0 - t
+		result.append(u * u * u * start + 3.0 * u * u * t * first_control + 3.0 * u * t * t * second_control + t * t * t * finish)
+	return result
