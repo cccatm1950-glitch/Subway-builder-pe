@@ -82,6 +82,26 @@ static func path_has_clearance(record: Dictionary, path: PackedVector2Array, cle
 		return false
 	return minimum_path_clearance(record, path, sample_spacing) >= clearance
 
+
+# Return a lane endpoint beyond the platform's longitudinal end. The lateral
+# offset places parallel tracks beside the platform instead of drawing a
+# connector across its footprint.
+static func get_approach_point(record: Dictionary, outward_direction: Vector2, lateral_offset: float = 0.0, clearance: float = 0.0) -> Vector2:
+	if record.is_empty() or not record.has("center") or outward_direction.length_squared() <= 0.0001:
+		return Vector2(record.get("center", Vector2.ZERO))
+	var axis := outward_direction.normalized()
+	var normal := Vector2(-axis.y, axis.x)
+	var rotation := float(record.get("rotation", 0.0))
+	var platform_axis := Vector2.RIGHT.rotated(rotation)
+	var half_length := maxf(float(record.get("platform_length", DEFAULT_PLATFORM_LENGTH)), MIN_PLATFORM_DIMENSION) * 0.5
+	var axis_alignment := absf(axis.dot(platform_axis))
+	# The approach exits through the end face only when aligned with the
+	# platform's long axis. For branch directions, use the support distance
+	# of the oriented rectangle along that direction.
+	var half_width := maxf(float(record.get("platform_width", DEFAULT_PLATFORM_WIDTH)), MIN_PLATFORM_DIMENSION) * 0.5
+	var platform_support := half_length * axis_alignment + half_width * sqrt(maxf(0.0, 1.0 - axis_alignment * axis_alignment))
+	return Vector2(record.get("center", Vector2.ZERO)) + axis * (platform_support + maxf(clearance, 0.0)) + normal * lateral_offset
+
 # Treat opposite approach directions as the same platform axis. A branch with
 # equally weighted perpendicular approaches is ambiguous and keeps its fallback.
 static func resolve_rotation(directions: Array[Vector2], fallback_rotation: float = 0.0) -> float:
