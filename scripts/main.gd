@@ -268,7 +268,9 @@ func _handle_curve_tap(screen_position: Vector2) -> void:
 	var end_node := lane_node_id
 	if end_node < 0:
 		end_node = _get_or_create_lane_node(curve_end, station_index, 0, -1)
-	curve_segments.append({"start": curve_start, "control": curve_control, "end": curve_end, "start_node": start_node, "end_node": end_node, "start_station": pending_curve_start, "end_station": station_index})
+	var curve_start_tangent := _find_connected_track_tangent(curve_start, (curve_control - curve_start).normalized(), false)
+	var curve_end_tangent := _find_connected_track_tangent(curve_end, (curve_end - curve_control).normalized(), true)
+	curve_segments.append({"start": curve_start, "control": curve_control, "end": curve_end, "start_node": start_node, "end_node": end_node, "start_station": pending_curve_start, "end_station": station_index, "start_tangent": curve_start_tangent, "end_tangent": curve_end_tangent})
 	track_edges.append({"id": next_track_edge_id, "start_node": start_node, "end_node": end_node, "start_station": pending_curve_start, "end_station": station_index, "start_point": curve_start, "end_point": curve_end, "kind": "curve", "parallel_group": -1, "lane_index": 0, "lane_count": 1, "centerline_spacing": 0.0})
 	_register_lane_edge(next_track_edge_id, start_node, end_node)
 	next_track_edge_id += 1
@@ -349,7 +351,7 @@ func _handle_parallel_curve_tap(screen_position: Vector2) -> void:
 		start_anchor_positions.append(Vector2(start_anchor_nodes[lane]["position"]))
 		end_anchor_positions.append(Vector2(end_anchor_nodes[lane]["position"]))
 		transition_path_indices.append([-1, -1])
-	parallel_curve_segments.append({"paths": pair, "start_station": pending_curve_start, "end_station": station_index, "start_point": curve_start, "end_point": curve_end, "start_node": pending_curve_start_node, "end_node": lane_node_id, "control": control, "group_id": group_id, "start_anchor_positions": start_anchor_positions, "end_anchor_positions": end_anchor_positions, "transition_path_indices": transition_path_indices})
+	parallel_curve_segments.append({"paths": pair, "start_station": pending_curve_start, "end_station": station_index, "start_point": curve_start, "end_point": curve_end, "start_node": pending_curve_start_node, "end_node": lane_node_id, "control": control, "start_tangent": start_tangent, "end_tangent": end_tangent, "group_id": group_id, "start_anchor_positions": start_anchor_positions, "end_anchor_positions": end_anchor_positions, "transition_path_indices": transition_path_indices})
 	for lane in range(2):
 		var path: PackedVector2Array = pair[lane]
 		var start_anchor: Dictionary = start_anchor_nodes[lane]
@@ -563,7 +565,9 @@ func _move_curve_handle(screen_position: Vector2) -> void:
 		var start_point: Vector2 = parallel_curve.get("start_point", Vector2.ZERO)
 		var end_point: Vector2 = parallel_curve.get("end_point", Vector2.ZERO)
 		var control := _constrain_curve_control(start_point, new_control, end_point)
-		var pair := _offset_parallel_curve(_make_curve_points(start_point, control, end_point), PARALLEL_CENTERLINE_SPACING * 0.5)
+		var stored_start_tangent: Vector2 = parallel_curve.get("start_tangent", Vector2.ZERO)
+		var stored_end_tangent: Vector2 = parallel_curve.get("end_tangent", Vector2.ZERO)
+		var pair := _offset_parallel_curve(_make_curve_points(start_point, control, end_point, stored_start_tangent, stored_end_tangent), PARALLEL_CENTERLINE_SPACING * 0.5)
 		if pair.size() == 2 and pair[0].size() > 1 and pair[1].size() > 1:
 			parallel_curve["control"] = control
 			parallel_curve["paths"] = pair
@@ -1178,7 +1182,7 @@ func _select_parallel_curve_mode() -> void:
 func _draw() -> void:
 	for index in range(curve_segments.size()):
 		var curve: Dictionary = curve_segments[index]
-		var curve_points := _make_curve_points(curve["start"], curve["control"], curve["end"])
+		var curve_points := _make_curve_points(curve["start"], curve["control"], curve["end"], curve.get("start_tangent", Vector2.ZERO), curve.get("end_tangent", Vector2.ZERO))
 		if curve_points.size() > 1:
 			draw_polyline(curve_points, Color(0.24, 0.86, 0.78), 7.0, true)
 		if build_mode == "curve":
