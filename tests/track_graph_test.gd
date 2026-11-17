@@ -15,6 +15,7 @@ func _run_tests() -> void:
 	_test_parallel_to_single_merge_topology()
 	_test_branch_turnout_preserves_other_lane()
 	_test_branch_lane_selection_both_sides_and_directions()
+	_test_turnout_geometry_preserves_endpoint_headings()
 	print("TRACK_GRAPH_TESTS: PASS")
 	quit(0)
 
@@ -126,3 +127,17 @@ func _test_branch_lane_selection_both_sides_and_directions() -> void:
 	assert(JunctionEngineScript.select_branch_lane_index(reversed_order, origin, east, Vector2(1, -1)) == 1, "Lane selection must not depend on array order")
 	assert(JunctionEngineScript.select_branch_lane_index(lanes, origin, east, east) == -1, "A straight continuation must not be classified as a branch-side selection")
 	assert(JunctionEngineScript.select_branch_lane_index(lanes, origin, Vector2.ZERO, Vector2.UP) == -1, "Degenerate directions must be rejected")
+
+func _test_turnout_geometry_preserves_endpoint_headings() -> void:
+	var start := Vector2(0, 24)
+	var finish := Vector2(120, 0)
+	var start_direction := Vector2.RIGHT
+	var finish_direction := Vector2.RIGHT
+	var path := JunctionEngineScript.build_turnout_path(start, finish, start_direction, finish_direction, 32.0, 40)
+	assert(path.size() == 41, "Turnout should contain the requested samples")
+	assert(path[0].distance_to(start) <= 0.001, "Turnout must start at the selected lane endpoint")
+	assert(path[path.size() - 1].distance_to(finish) <= 0.001, "Turnout must end at the shared switch node")
+	assert((path[1] - path[0]).normalized().dot(start_direction) > 0.99, "Turnout must leave along the existing lane heading")
+	assert((path[path.size() - 1] - path[path.size() - 2]).normalized().dot(finish_direction) > 0.99, "Turnout must arrive along the outgoing track heading")
+	assert(JunctionEngineScript.build_turnout_path(start, finish, Vector2.ZERO, finish_direction, 32.0).is_empty(), "Turnout must reject a missing start heading")
+	assert(JunctionEngineScript.build_turnout_path(start, start, start_direction, finish_direction, 32.0).is_empty(), "Turnout must reject a zero-length path")
