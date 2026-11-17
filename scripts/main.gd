@@ -5,6 +5,7 @@ const MAX_ZOOM := 2.5
 const TrackGraphScript = preload("res://scripts/railway/track_graph.gd")
 const TrackGeometryScript = preload("res://scripts/railway/track_geometry.gd")
 const JunctionEngineScript = preload("res://scripts/railway/junction_engine.gd")
+const StationModelScript = preload("res://scripts/railway/station_model.gd")
 const SNAP_SPACING := 32.0
 const TAP_DRAG_THRESHOLD := 16.0
 const STATION_PICK_RADIUS := 64.0
@@ -23,6 +24,7 @@ var ignored_touches: Dictionary = {}
 var previous_pinch_distance := 0.0
 var build_mode := ""
 var stations: Array[Vector2] = []
+var station_records: Array[Dictionary] = []
 var track_segments: Array[Vector2] = []
 var pending_curve_start_node := -1
 # Topology records keep station connectivity and future parallel-lane metadata
@@ -191,7 +193,9 @@ func _handle_map_tap(_screen_position: Vector2) -> void:
 	elif build_mode == "station":
 		var station_position := get_snapped_world_position(crosshair_screen)
 		if not stations.has(station_position):
+			var station_id := stations.size()
 			stations.append(station_position)
+			station_records.append(StationModelScript.create_record(station_id, station_position))
 			queue_redraw()
 		_update_coordinate_readout()
 	elif build_mode == "track" or build_mode == "parallel":
