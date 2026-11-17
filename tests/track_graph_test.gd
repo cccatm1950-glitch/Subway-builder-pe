@@ -1,6 +1,6 @@
 extends SceneTree
 
-const TrackGraph = preload("res://scripts/railway/track_graph.gd")
+const TrackGraphScript = preload("res://scripts/railway/track_graph.gd")
 
 func _initialize() -> void:
 	call_deferred("_run_tests")
@@ -14,7 +14,7 @@ func _run_tests() -> void:
 	quit(0)
 
 func _test_edge_connectivity() -> void:
-	var graph = TrackGraph.new()
+	var graph = TrackGraphScript.new()
 	var a: int = graph.add_node(Vector2(0, 0), 0)
 	var b: int = graph.add_node(Vector2(100, 0), 1)
 	var edge: int = graph.add_edge(a, b, "single", PackedVector2Array([Vector2(0, 0), Vector2(100, 0)]))
@@ -25,7 +25,7 @@ func _test_edge_connectivity() -> void:
 	assert(graph.validate().is_empty(), "Valid graph should have no diagnostics")
 
 func _test_shared_node_branches() -> void:
-	var graph = TrackGraph.new()
+	var graph = TrackGraphScript.new()
 	var shared: int = graph.add_node(Vector2.ZERO, 0)
 	var lane_a: int = graph.add_node(Vector2(100, -24), 1, 7, 0)
 	var lane_b: int = graph.add_node(Vector2(100, 24), 1, 7, 1)
@@ -38,7 +38,7 @@ func _test_shared_node_branches() -> void:
 	assert(graph.validate().is_empty(), "Branched graph should validate")
 
 func _test_removal_keeps_adjacency_consistent() -> void:
-	var graph = TrackGraph.new()
+	var graph = TrackGraphScript.new()
 	var a: int = graph.add_node(Vector2.ZERO)
 	var b: int = graph.add_node(Vector2.RIGHT * 100.0)
 	var c: int = graph.add_node(Vector2.UP * 100.0)
@@ -52,7 +52,7 @@ func _test_removal_keeps_adjacency_consistent() -> void:
 	assert(graph.validate().is_empty(), "Graph should remain valid after node removal")
 
 func _test_rejects_invalid_edges() -> void:
-	var graph = TrackGraph.new()
+	var graph = TrackGraphScript.new()
 	var a: int = graph.add_node(Vector2.ZERO)
 	assert(graph.add_edge(a, 999, "single", PackedVector2Array([Vector2.ZERO, Vector2.ONE])) == -1, "Missing endpoint must be rejected")
 	assert(graph.add_edge(a, a, "single", PackedVector2Array([Vector2.ZERO, Vector2.ONE])) == -1, "Self-loop must be rejected")
