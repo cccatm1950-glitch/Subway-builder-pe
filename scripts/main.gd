@@ -67,6 +67,26 @@ func _ready() -> void:
 	_update_coordinate_readout()
 	hud.set_input_status("INPUT READY")
 
+var polled_touch_active := false
+var polled_touch_last_position := Vector2.ZERO
+
+func _process(_delta: float) -> void:
+	# Poll the Android touch state as a fallback for devices where drag
+	# notifications are not consistently delivered to Node2D._input().
+	var touch_count := Input.get_touch_count()
+	if touch_count == 1:
+		var current_position := Input.get_touch_position(0)
+		if polled_touch_active:
+			var pan_delta := current_position - polled_touch_last_position
+			if not pan_delta.is_zero_approx():
+				_pan_camera(pan_delta)
+				hud.set_input_status("MAP DRAG · POLLED TOUCH")
+		else:
+			polled_touch_active = true
+		polled_touch_last_position = current_position
+	else:
+		polled_touch_active = false
+
 func _input(event: InputEvent) -> void:
 	if event is InputEventScreenTouch:
 		_handle_screen_touch(event)
@@ -153,11 +173,9 @@ func _handle_screen_drag(event: InputEventScreenDrag) -> void:
 	if event.position.distance_to(start) > TAP_DRAG_THRESHOLD:
 		touch_moved[event.index] = true
 	if active_touches.size() == 1:
-		if pan_delta.is_zero_approx():
-			pan_delta = event.relative
-		if not pan_delta.is_zero_approx():
-			_pan_camera(pan_delta)
-		hud.set_input_status("MAP DRAG")
+		# One-finger panning is handled by _process() polling so it also
+		# works on Android builds that omit ScreenDrag notifications.
+		hud.set_input_status("TOUCH HELD")
 	elif active_touches.size() >= 2:
 		_update_pinch_zoom()
 		hud.set_input_status("PINCH ZOOM")
