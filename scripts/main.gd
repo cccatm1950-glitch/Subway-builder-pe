@@ -349,7 +349,7 @@ func _handle_parallel_curve_tap(screen_position: Vector2) -> void:
 		start_anchor_positions.append(Vector2(start_anchor_nodes[lane]["position"]))
 		end_anchor_positions.append(Vector2(end_anchor_nodes[lane]["position"]))
 		transition_path_indices.append([-1, -1])
-	parallel_curve_segments.append({"paths": pair, "start_station": pending_curve_start, "end_station": station_index, "start_point": curve_start, "end_point": curve_end, "start_node": pending_curve_start_node, "end_node": lane_node_id, "control": control, "group_id": group_id, "start_anchor_positions": start_anchor_positions, "end_anchor_positions": end_anchor_positions, "transition_path_indices": transition_path_indices})
+	parallel_curve_segments.append({"paths": pair, "start_station": pending_curve_start, "end_station": station_index, "start_point": curve_start, "end_point": curve_end, "start_node": pending_curve_start_node, "end_node": lane_node_id, "control": control, "start_tangent": start_tangent, "end_tangent": end_tangent, "group_id": group_id, "start_anchor_positions": start_anchor_positions, "end_anchor_positions": end_anchor_positions, "transition_path_indices": transition_path_indices})
 	for lane in range(2):
 		var path: PackedVector2Array = pair[lane]
 		var start_anchor: Dictionary = start_anchor_nodes[lane]
@@ -563,7 +563,9 @@ func _move_curve_handle(screen_position: Vector2) -> void:
 		var start_point: Vector2 = parallel_curve.get("start_point", Vector2.ZERO)
 		var end_point: Vector2 = parallel_curve.get("end_point", Vector2.ZERO)
 		var control := _constrain_curve_control(start_point, new_control, end_point)
-		var pair := _offset_parallel_curve(_make_curve_points(start_point, control, end_point), PARALLEL_CENTERLINE_SPACING * 0.5)
+		var stored_start_tangent: Vector2 = parallel_curve.get("start_tangent", Vector2.ZERO)
+		var stored_end_tangent: Vector2 = parallel_curve.get("end_tangent", Vector2.ZERO)
+		var pair := _offset_parallel_curve(_make_curve_points(start_point, control, end_point, stored_start_tangent, stored_end_tangent), PARALLEL_CENTERLINE_SPACING * 0.5)
 		if pair.size() == 2 and pair[0].size() > 1 and pair[1].size() > 1:
 			parallel_curve["control"] = control
 			parallel_curve["paths"] = pair
