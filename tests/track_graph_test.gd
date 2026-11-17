@@ -11,6 +11,7 @@ func _run_tests() -> void:
 	_test_removal_keeps_adjacency_consistent()
 	_test_rejects_invalid_edges()
 	_test_geometry_updates()
+	_test_parallel_to_single_merge_topology()
 	print("TRACK_GRAPH_TESTS: PASS")
 	quit(0)
 
@@ -59,6 +60,23 @@ func _test_rejects_invalid_edges() -> void:
 	assert(graph.add_edge(a, a, "single", PackedVector2Array([Vector2.ZERO, Vector2.ONE])) == -1, "Self-loop must be rejected")
 	assert(graph.add_edge(a, graph.add_node(Vector2.ONE), "single", PackedVector2Array()) == -1, "Empty geometry must be rejected")
 	assert(graph.validate().is_empty(), "Rejected edges must not corrupt the graph")
+
+func _test_parallel_to_single_merge_topology() -> void:
+	var graph = TrackGraphScript.new()
+	var through_lane: int = graph.add_node(Vector2(0, -24), 0, 12, 0)
+	var merging_lane: int = graph.add_node(Vector2(0, 24), 0, 12, 1)
+	var merge_point: int = graph.add_node(Vector2(120, 0), 1)
+	var single_end: int = graph.add_node(Vector2(260, 0), 2)
+	var through_path := PackedVector2Array([Vector2(0, -24), Vector2(60, -12), Vector2(120, 0)])
+	var merging_path := PackedVector2Array([Vector2(0, 24), Vector2(60, 12), Vector2(120, 0)])
+	var through_transition: int = graph.add_edge(through_lane, merge_point, "transition", through_path)
+	var merge_transition: int = graph.add_edge(merging_lane, merge_point, "transition", merging_path)
+	var outgoing: int = graph.add_edge(merge_point, single_end, "single", PackedVector2Array([Vector2(120, 0), Vector2(260, 0)]))
+	assert(through_transition > 0 and merge_transition > 0 and outgoing > 0, "Both merge approaches and the outgoing single track should be connected")
+	assert(graph.get_incident_edges(merge_point).size() == 3, "Merge node must connect both parallel lanes to the outgoing single track")
+	assert(graph.get_other_endpoint(through_transition, merge_point) == through_lane, "Through-lane transition should retain its lane endpoint")
+	assert(graph.get_other_endpoint(merge_transition, merge_point) == merging_lane, "Converging-lane transition should retain its lane endpoint")
+	assert(graph.validate().is_empty(), "Parallel-to-single merge topology should validate")
 
 func _test_geometry_updates() -> void:
 	var graph = TrackGraphScript.new()
