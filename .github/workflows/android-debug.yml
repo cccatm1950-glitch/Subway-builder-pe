@@ -105,6 +105,13 @@ jobs:
             barichello/godot-ci:4.4.1 \
             godot --headless --path . --script res://tests/track_geometry_test.gd
 
+      - name: Run station model tests
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            barichello/godot-ci:4.4.1 \
+            godot --headless --path . --script res://tests/station_model_test.gd
       - name: Import project and export APK with verbose diagnostics
         run: |
           mkdir -p build/android
