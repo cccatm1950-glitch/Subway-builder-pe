@@ -68,6 +68,12 @@ func update_node_position(node_id: int, position: Vector2) -> bool:
 	_nodes[node_id]["position"] = position
 	return true
 
+func update_edge_points(edge_id: int, points: PackedVector2Array) -> bool:
+	if not _edges.has(edge_id) or points.size() < 2:
+		return false
+	_edges[edge_id]["points"] = points
+	return true
+
 func has_node(node_id: int) -> bool:
 	return _nodes.has(node_id)
 
