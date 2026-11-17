@@ -10,6 +10,7 @@ func _run_tests() -> void:
 	_test_curve_endpoints_and_tangents()
 	_test_polyline_length()
 	_test_degenerate_inputs()
+	_test_signed_offsets_on_bends()
 	print("TRACK_GEOMETRY_TESTS: PASS")
 	quit(0)
 
@@ -44,3 +45,14 @@ func _test_degenerate_inputs() -> void:
 	assert(offset.size() == repeated.size(), "Offset should preserve point count")
 	for point in offset:
 		assert(is_finite(point.x) and is_finite(point.y), "Degenerate segments must not produce invalid coordinates")
+
+func _test_signed_offsets_on_bends() -> void:
+	var centerline := PackedVector2Array([Vector2(0, 0), Vector2(100, 0), Vector2(100, 100)])
+	var positive: PackedVector2Array = TrackGeometryScript.offset_polyline(centerline, 24.0)
+	var negative: PackedVector2Array = TrackGeometryScript.offset_polyline(centerline, -24.0)
+	assert(positive.size() == centerline.size() and negative.size() == centerline.size(), "Bend offsets should preserve point count")
+	for index in range(centerline.size()):
+		assert(positive[index].distance_to(centerline[index]) > 0.0, "Positive offset should move every valid point")
+		assert(negative[index].distance_to(centerline[index]) > 0.0, "Negative offset should move every valid point")
+		assert(is_equal_approx(positive[index].distance_to(centerline[index]), negative[index].distance_to(centerline[index])), "Signed offsets should have symmetric miter lengths")
+	assert(positive[1].distance_to(negative[1]) > 40.0, "Opposite bend offsets should remain separated")
