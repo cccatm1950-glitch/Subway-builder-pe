@@ -147,9 +147,12 @@ func _test_turnout_geometry_preserves_endpoint_headings() -> void:
 
 func _test_route_engine_uses_curved_geometry() -> void:
 	var graph = TrackGraphScript.new()
-	var start: int = graph.add_node(Vector2.ZERO)
-	var bend: int = graph.add_node(Vector2(100, 20))
-	var finish: int = graph.add_node(Vector2(200, 0))
+	var start_position := Vector2.ZERO
+	var bend_position := Vector2(100, 20)
+	var finish_position := Vector2(200, 0)
+	var start: int = graph.add_node(start_position)
+	var bend: int = graph.add_node(bend_position)
+	var finish: int = graph.add_node(finish_position)
 	var direct: int = graph.add_edge(start, finish, "curve", PackedVector2Array([Vector2.ZERO, Vector2(100, 150), Vector2(200, 0)]))
 	var first_curve: int = graph.add_edge(start, bend, "curve", PackedVector2Array([Vector2.ZERO, Vector2(100, 20)]))
 	var second_curve: int = graph.add_edge(bend, finish, "curve", PackedVector2Array([Vector2(100, 20), Vector2(200, 0)]))
