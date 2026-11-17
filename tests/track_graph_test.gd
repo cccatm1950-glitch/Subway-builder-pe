@@ -9,6 +9,7 @@ func _initialize() -> void:
 
 func _run_tests() -> void:
 	_test_edge_connectivity()
+	_test_station_transfer_is_logical_not_rendered()
 	_test_shared_node_branches()
 	_test_removal_keeps_adjacency_consistent()
 	_test_rejects_invalid_edges()
@@ -32,6 +33,21 @@ func _test_edge_connectivity() -> void:
 	assert(graph.get_incident_edges(b).size() == 1, "End node should reference edge")
 	assert(graph.get_other_endpoint(edge, a) == b, "Endpoint lookup should be symmetric")
 	assert(graph.validate().is_empty(), "Valid graph should have no diagnostics")
+
+
+func _test_station_transfer_is_logical_not_rendered() -> void:
+	var graph = TrackGraphScript.new()
+	var platform_node: int = graph.add_node(Vector2.ZERO, 0)
+	var lane_node: int = graph.add_node(Vector2(0, 24), 0, 4, 0)
+	var transfer_points := PackedVector2Array([Vector2.ZERO, Vector2(0, 24)])
+	var transfer: int = graph.add_edge(platform_node, lane_node, "station_transfer", transfer_points)
+	assert(transfer > 0, "Station transfer must remain a valid graph edge")
+	var edge := graph.get_edge(transfer)
+	assert(not bool(edge.get("renderable", true)), "Station transfer must not be rendered as a rail stroke")
+	assert(graph.get_other_endpoint(transfer, platform_node) == lane_node, "Station transfer must preserve lane connectivity")
+	var route := RouteEngineScript.find_shortest_path(graph, platform_node, lane_node)
+	assert(route.get("edge_ids", []) == [transfer], "Route engine must traverse logical station transfers")
+	assert(graph.validate().is_empty(), "Logical station transfer must preserve graph validity")
 
 func _test_shared_node_branches() -> void:
 	var graph = TrackGraphScript.new()
