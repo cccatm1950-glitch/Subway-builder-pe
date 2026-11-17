@@ -4,7 +4,7 @@ class_name RouteEngine
 # Route planning reads only the canonical TrackGraph. Edge weights use the
 # stored sampled geometry so curved track distance is not reduced to a chord.
 
-static func find_shortest_path(graph: TrackGraph, start_node_id: int, end_node_id: int) -> Dictionary:
+static func find_shortest_path(graph, start_node_id: int, end_node_id: int) -> Dictionary:
 	if graph == null or not graph.has_node(start_node_id) or not graph.has_node(end_node_id):
 		return {}
 	if start_node_id == end_node_id:
