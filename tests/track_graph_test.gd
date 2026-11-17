@@ -10,6 +10,7 @@ func _run_tests() -> void:
 	_test_shared_node_branches()
 	_test_removal_keeps_adjacency_consistent()
 	_test_rejects_invalid_edges()
+	_test_geometry_updates()
 	print("TRACK_GRAPH_TESTS: PASS")
 	quit(0)
 
@@ -58,3 +59,15 @@ func _test_rejects_invalid_edges() -> void:
 	assert(graph.add_edge(a, a, "single", PackedVector2Array([Vector2.ZERO, Vector2.ONE])) == -1, "Self-loop must be rejected")
 	assert(graph.add_edge(a, graph.add_node(Vector2.ONE), "single", PackedVector2Array()) == -1, "Empty geometry must be rejected")
 	assert(graph.validate().is_empty(), "Rejected edges must not corrupt the graph")
+
+func _test_geometry_updates() -> void:
+	var graph = TrackGraphScript.new()
+	var a: int = graph.add_node(Vector2.ZERO)
+	var b: int = graph.add_node(Vector2.RIGHT * 100.0)
+	var edge: int = graph.add_edge(a, b, "curve", PackedVector2Array([Vector2.ZERO, Vector2.RIGHT * 100.0]))
+	var revised := PackedVector2Array([Vector2.ZERO, Vector2(50, 30), Vector2.RIGHT * 100.0])
+	assert(graph.update_edge_points(edge, revised), "Existing edge geometry should update")
+	assert(graph.get_edge(edge)["points"].size() == 3, "Updated edge should retain its complete path")
+	assert(not graph.update_edge_points(999, revised), "Missing edge geometry update should fail")
+	assert(not graph.update_edge_points(edge, PackedVector2Array()), "Invalid geometry update should fail")
+	assert(graph.validate().is_empty(), "Geometry update should preserve graph validity")
