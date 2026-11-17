@@ -1276,31 +1276,21 @@ func _select_parallel_curve_mode() -> void:
 	hud.set_mode(build_mode, "TAP START  ·  DRAG SHARED CURVE HANDLE  ·  TAP END" if build_mode == "parallel_curve" else "DRAG TO MOVE  ·  PINCH TO ZOOM")
 
 func _draw() -> void:
-	for index in range(curve_segments.size()):
-		var curve: Dictionary = curve_segments[index]
-		var curve_points := _make_curve_points(curve["start"], curve["control"], curve["end"], curve.get("start_tangent", Vector2.ZERO), curve.get("end_tangent", Vector2.ZERO))
-		if curve_points.size() > 1:
-			draw_polyline(curve_points, Color(0.24, 0.86, 0.78), 7.0, true)
-		if build_mode == "curve":
-			_draw_completed_curve_handle(curve, index == editing_curve_index)
+	_draw_canonical_track_edges()
 	for path in junction_transition_paths:
-		if path.size() > 1:
+		if path.size() > 1 and not _canonical_graph_contains_path(path):
 			draw_polyline(path, Color(0.24, 0.86, 0.78), 7.0, true)
-	for index in range(0, track_segments.size(), 2):
-		if index + 1 < track_segments.size():
-			draw_line(track_segments[index], track_segments[index + 1], Color(0.24, 0.86, 0.78), 7.0, true)
+	if build_mode == "curve":
+		for index in range(curve_segments.size()):
+			_draw_completed_curve_handle(curve_segments[index], index == editing_curve_index)
 	if (build_mode == "track" or build_mode == "parallel") and (pending_track_start >= 0 or pending_track_start_node >= 0):
 		_draw_track_preview()
 	if build_mode == "curve" and (pending_curve_start >= 0 or pending_curve_start_node >= 0):
 		_draw_curve_preview()
 	if build_mode == "parallel_curve" and (pending_curve_start >= 0 or pending_curve_start_node >= 0):
 		_draw_parallel_curve_preview()
-	for segment_index in range(parallel_curve_segments.size()):
-		var segment: Dictionary = parallel_curve_segments[segment_index]
-		for path in segment["paths"]:
-			if path.size() > 1:
-				draw_polyline(path, Color(0.24, 0.86, 0.78), 7.0, true)
-		if build_mode == "parallel_curve":
+	if build_mode == "parallel_curve":
+		for segment in parallel_curve_segments:
 			var handle: Vector2 = segment["control"]
 			var zoom_scale := camera.zoom.x
 			draw_line(segment["paths"][0][0], handle, Color(0.72, 1.0, 0.97, 0.55), 2.0 / zoom_scale, true)
@@ -1318,6 +1308,28 @@ func _draw() -> void:
 		draw_arc(station, 16.0, 0.0, TAU, 32, Color(0.25, 0.88, 0.82), 2.0, true)
 		if build_mode == "track" and index == pending_track_start:
 			draw_arc(station, 23.0, 0.0, TAU, 32, Color(1.0, 1.0, 1.0), 2.0, true)
+
+func _draw_canonical_track_edges() -> void:
+	for graph_edge_id in track_graph.get_edge_ids():
+		var edge := track_graph.get_edge(int(graph_edge_id))
+		var points: PackedVector2Array = edge.get("points", PackedVector2Array())
+		if points.size() > 1:
+			draw_polyline(points, Color(0.24, 0.86, 0.78), 7.0, true)
+
+func _canonical_graph_contains_path(path: PackedVector2Array) -> bool:
+	for graph_edge_id in track_graph.get_edge_ids():
+		var edge := track_graph.get_edge(int(graph_edge_id))
+		var graph_path: PackedVector2Array = edge.get("points", PackedVector2Array())
+		if graph_path.size() != path.size():
+			continue
+		var matches := true
+		for index in range(path.size()):
+			if graph_path[index].distance_to(path[index]) > 0.01:
+				matches = false
+				break
+		if matches:
+			return true
+	return false
 
 func _draw_completed_curve_handle(curve: Dictionary, is_being_edited: bool) -> void:
 	var control: Vector2 = curve["control"]
