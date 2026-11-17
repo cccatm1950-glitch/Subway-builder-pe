@@ -806,6 +806,10 @@ func get_graph_mirror_diagnostics() -> PackedStringArray:
 		var legacy_node_id := int(node.get("id", -1))
 		if not graph_node_ids.has(legacy_node_id):
 			errors.append("Legacy lane node %d is missing from the graph map" % legacy_node_id)
+			continue
+		var graph_node := track_graph.get_node(int(graph_node_ids[legacy_node_id]))
+		if Vector2(graph_node.get("position", Vector2.ZERO)).distance_to(Vector2(node.get("position", Vector2.ZERO))) > 0.01:
+			errors.append("Legacy lane node %d position differs from canonical graph" % legacy_node_id)
 	for edge in track_edges:
 		var legacy_edge_id := int(edge.get("id", -1))
 		if not graph_edge_ids.has(legacy_edge_id):
@@ -816,6 +820,15 @@ func get_graph_mirror_diagnostics() -> PackedStringArray:
 		var expected_end := int(graph_node_ids.get(int(edge.get("end_node", -1)), -1))
 		if int(graph_edge.get("start_node_id", -1)) != expected_start or int(graph_edge.get("end_node_id", -1)) != expected_end:
 			errors.append("Legacy track edge %d endpoints differ from canonical graph" % legacy_edge_id)
+		var expected_points := _get_track_edge_geometry(edge)
+		var graph_points: PackedVector2Array = graph_edge.get("points", PackedVector2Array())
+		if graph_points.size() != expected_points.size():
+			errors.append("Legacy track edge %d geometry sample count differs from canonical graph" % legacy_edge_id)
+		else:
+			for point_index in range(expected_points.size()):
+				if graph_points[point_index].distance_to(expected_points[point_index]) > 0.01:
+					errors.append("Legacy track edge %d geometry differs from canonical graph" % legacy_edge_id)
+					break
 	return errors
 
 
