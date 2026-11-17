@@ -34,6 +34,7 @@ func add_edge(start_node_id: int, end_node_id: int, kind: String, points: Packed
 		"start_node_id": start_node_id,
 		"end_node_id": end_node_id,
 		"kind": kind,
+		"renderable": kind != "station_transfer",
 		"points": points,
 		"lane_group_id": lane_group_id,
 		"lane_index": lane_index
