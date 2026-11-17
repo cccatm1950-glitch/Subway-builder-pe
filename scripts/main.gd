@@ -1212,7 +1212,7 @@ func _find_connected_track_tangent(endpoint_position: Vector2, preferred_directi
 		# drawn) as the reference tangent. Straight and parallel approaches
 		# define the turnout alignment; otherwise curve geometry can become
 		# dependent on the order in which additional edges are added.
-		if String(edge.get("kind", "")) == "curve" or String(edge.get("kind", "")) == "transition":
+		if String(edge.get("kind", "")) == "curve" or String(edge.get("kind", "")) == "transition" or String(edge.get("kind", "")) == "station_transfer":
 			continue
 		var is_start := int(edge.get("start_node", -1)) == endpoint_node
 		var is_end := int(edge.get("end_node", -1)) == endpoint_node
