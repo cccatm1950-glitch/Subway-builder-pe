@@ -10,6 +10,7 @@ func _run_tests() -> void:
 	_test_rotated_platform_footprint()
 	_test_dimensions_are_clamped()
 	_test_invalid_records_are_safe()
+	_test_path_clearance()
 	print("STATION_MODEL_TESTS: PASS")
 	quit(0)
 
@@ -38,3 +39,13 @@ func _test_invalid_records_are_safe() -> void:
 	assert(StationModelScript.get_footprint({}).is_empty(), "Missing record should have no footprint")
 	assert(not StationModelScript.contains_point({}, Vector2.ZERO), "Missing record should not contain points")
 	assert(is_inf(StationModelScript.distance_to_centerline({}, Vector2.ZERO)), "Missing record should return infinite distance")
+
+func _test_path_clearance() -> void:
+	var record = StationModelScript.create_record(7, Vector2.ZERO)
+	var through_platform := PackedVector2Array([Vector2(-100, 0), Vector2(100, 0)])
+	var alongside_platform := PackedVector2Array([Vector2(-100, 30), Vector2(100, 30)])
+	assert(is_zero_approx(StationModelScript.minimum_path_clearance(record, through_platform)), "A path crossing the platform footprint must report zero clearance")
+	assert(is_equal_approx(StationModelScript.minimum_path_clearance(record, alongside_platform), 16.0), "Clearance should be measured from the platform edge")
+	assert(StationModelScript.path_has_clearance(record, alongside_platform, 12.0), "A path outside the requested clearance should pass")
+	assert(not StationModelScript.path_has_clearance(record, alongside_platform, 18.0), "A path inside the requested clearance should fail")
+	assert(not StationModelScript.path_has_clearance(record, through_platform, 1.0), "A path through the platform must fail any positive clearance")
