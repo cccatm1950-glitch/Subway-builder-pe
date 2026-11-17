@@ -31,10 +31,10 @@ func _ready() -> void:
 	add_child(title)
 
 	input_status_label = Label.new()
-	input_status_label.position = Vector2(24, 94)
-	input_status_label.size = Vector2(420, 22)
-	input_status_label.add_theme_color_override("font_color", Color(0.55, 0.68, 0.72))
-	input_status_label.add_theme_font_size_override("font_size", 11)
+	input_status_label.position = Vector2(24, 112)
+	input_status_label.size = Vector2(560, 34)
+	input_status_label.add_theme_color_override("font_color", Color(1.0, 0.72, 0.24))
+	input_status_label.add_theme_font_size_override("font_size", 17)
 	add_child(input_status_label)
 
 	coordinate_label = Label.new()
