@@ -4,6 +4,7 @@ const MIN_ZOOM := 0.45
 const MAX_ZOOM := 2.5
 const TrackGraphScript = preload("res://scripts/railway/track_graph.gd")
 const TrackGeometryScript = preload("res://scripts/railway/track_geometry.gd")
+const JunctionEngineScript = preload("res://scripts/railway/junction_engine.gd")
 const SNAP_SPACING := 32.0
 const TAP_DRAG_THRESHOLD := 16.0
 const STATION_PICK_RADIUS := 64.0
@@ -993,15 +994,9 @@ func _build_parallel_merge_transition(start_station: int, end_station: int, star
 				break
 		if neighbor_direction == Vector2.ZERO:
 			return {}
-		var parallel_normal := Vector2(-neighbor_direction.y, neighbor_direction.x)
-		var branch_side := outward_direction.dot(parallel_normal)
-		var selected_lane := 0
-		var selected_offset := (lane_endpoints[0] - original_merge_point).dot(parallel_normal)
-		for lane_index in range(1, lane_endpoints.size()):
-			var lane_offset := (lane_endpoints[lane_index] - original_merge_point).dot(parallel_normal)
-			if (branch_side >= 0.0 and lane_offset > selected_offset) or (branch_side < 0.0 and lane_offset < selected_offset):
-				selected_lane = lane_index
-				selected_offset = lane_offset
+		var selected_lane := JunctionEngineScript.select_branch_lane_index(lane_endpoints, original_merge_point, neighbor_direction, outward_direction)
+		if selected_lane < 0:
+			return {}
 		var lane_point: Vector2 = lane_endpoints[selected_lane]
 		var switch_length := minf(merge_length, lane_point.distance_to(merge_point) + merge_length * 0.35)
 		var switch_end := merge_point
