@@ -12,6 +12,7 @@ func _run_tests() -> void:
 	_test_invalid_records_are_safe()
 	_test_path_clearance()
 	_test_platform_axis_alignment()
+	_test_platform_edge_approach_points()
 	print("STATION_MODEL_TESTS: PASS")
 	quit(0)
 
@@ -60,3 +61,17 @@ func _test_platform_axis_alignment() -> void:
 	assert(is_equal_approx(StationModelScript.resolve_rotation(ambiguous_branch, 0.37), 0.37), "Perpendicular branch approaches should preserve the existing platform orientation")
 	var no_approaches: Array[Vector2] = []
 	assert(is_equal_approx(StationModelScript.resolve_rotation(no_approaches, 0.62), 0.62), "An unconnected station should preserve its fallback orientation")
+
+
+func _test_platform_edge_approach_points() -> void:
+	var record = StationModelScript.create_record(9, Vector2.ZERO)
+	var upper_lane := StationModelScript.get_approach_point(record, Vector2.RIGHT, 24.0, 8.0)
+	var lower_lane := StationModelScript.get_approach_point(record, Vector2.RIGHT, -24.0, 8.0)
+	assert(is_equal_approx(upper_lane.x, 64.0) and is_equal_approx(upper_lane.y, 24.0), "Approach should clear the platform end and preserve its lane offset")
+	assert(is_equal_approx(lower_lane.x, 64.0) and is_equal_approx(lower_lane.y, -24.0), "Opposite lane should preserve the mirrored offset")
+	assert(not StationModelScript.contains_point(record, upper_lane), "Parallel approach endpoint must not lie inside the platform")
+	var reverse_lane := StationModelScript.get_approach_point(record, Vector2.LEFT, 24.0, 8.0)
+	assert(is_equal_approx(reverse_lane.x, -64.0) and is_equal_approx(reverse_lane.y, -24.0), "Reverse approach should mirror the lateral lane side")
+	var rotated = StationModelScript.create_record(10, Vector2(20, 30), 100.0, 20.0, PI * 0.5)
+	var rotated_approach := StationModelScript.get_approach_point(rotated, Vector2.DOWN, 16.0, 6.0)
+	assert(is_equal_approx(rotated_approach.x, 4.0) and is_equal_approx(rotated_approach.y, 86.0), "Rotated platform approach should follow its oriented footprint")
