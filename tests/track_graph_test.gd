@@ -2,6 +2,7 @@ extends SceneTree
 
 const TrackGraphScript = preload("res://scripts/railway/track_graph.gd")
 const JunctionEngineScript = preload("res://scripts/railway/junction_engine.gd")
+const RouteEngineScript = preload("res://scripts/railway/route_engine.gd")
 
 func _initialize() -> void:
 	call_deferred("_run_tests")
@@ -16,6 +17,8 @@ func _run_tests() -> void:
 	_test_branch_turnout_preserves_other_lane()
 	_test_branch_lane_selection_both_sides_and_directions()
 	_test_turnout_geometry_preserves_endpoint_headings()
+	_test_route_engine_uses_curved_geometry()
+	_test_route_engine_handles_unreachable_and_same_node()
 	print("TRACK_GRAPH_TESTS: PASS")
 	quit(0)
 
@@ -141,3 +144,26 @@ func _test_turnout_geometry_preserves_endpoint_headings() -> void:
 	assert((path[path.size() - 1] - path[path.size() - 2]).normalized().dot(finish_direction) > 0.99, "Turnout must arrive along the outgoing track heading")
 	assert(JunctionEngineScript.build_turnout_path(start, finish, Vector2.ZERO, finish_direction, 32.0).is_empty(), "Turnout must reject a missing start heading")
 	assert(JunctionEngineScript.build_turnout_path(start, start, start_direction, finish_direction, 32.0).is_empty(), "Turnout must reject a zero-length path")
+
+func _test_route_engine_uses_curved_geometry() -> void:
+	var graph = TrackGraphScript.new()
+	var start: int = graph.add_node(Vector2.ZERO)
+	var bend: int = graph.add_node(Vector2(100, 100))
+	var finish: int = graph.add_node(Vector2(200, 0))
+	var direct: int = graph.add_edge(start, finish, "single", PackedVector2Array([Vector2.ZERO, Vector2(200, 0)]))
+	var first_curve: int = graph.add_edge(start, bend, "curve", PackedVector2Array([Vector2.ZERO, Vector2(50, 80), Vector2(100, 100)]))
+	var second_curve: int = graph.add_edge(bend, finish, "curve", PackedVector2Array([Vector2(100, 100), Vector2(150, 80), Vector2(200, 0)]))
+	var route := RouteEngineScript.find_shortest_path(graph, start, finish)
+	assert(route.size() == 3, "Reachable route should return nodes, edges and distance")
+	assert(route["edge_ids"] == [direct], "Shortest route should prefer the shorter direct track")
+	assert(route["node_ids"] == [start, finish], "Direct route should preserve ordered endpoints")
+	assert(is_equal_approx(float(route["total_length"]), 200.0), "Route length should use sampled edge geometry")
+
+func _test_route_engine_handles_unreachable_and_same_node() -> void:
+	var graph = TrackGraphScript.new()
+	var start: int = graph.add_node(Vector2.ZERO)
+	var finish: int = graph.add_node(Vector2.RIGHT * 100.0)
+	assert(RouteEngineScript.find_shortest_path(graph, start, finish).is_empty(), "Disconnected nodes should have no route")
+	var same := RouteEngineScript.find_shortest_path(graph, start, start)
+	assert(same["node_ids"] == [start] and same["edge_ids"].is_empty(), "Same-node route should be a zero-length path")
+	assert(is_equal_approx(float(same["total_length"]), 0.0), "Same-node route distance should be zero")
