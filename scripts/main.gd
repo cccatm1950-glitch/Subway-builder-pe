@@ -1174,15 +1174,18 @@ func _get_station_track_directions(station_index: int) -> Array[Vector2]:
 	for edge in track_edges:
 		var start_index := int(edge.get("start_station", -1))
 		var end_index := int(edge.get("end_station", -1))
-		var neighbor_index := -1
-		if start_index == station_index:
-			neighbor_index = end_index
-		elif end_index == station_index:
-			neighbor_index = start_index
-		if neighbor_index >= 0 and neighbor_index < stations.size():
-			var direction := (stations[neighbor_index] - stations[station_index]).normalized()
-			if direction != Vector2.ZERO:
-				directions.append(direction)
+		if start_index != station_index and end_index != station_index:
+			continue
+		# Use the sampled endpoint tangent, not the station-to-station chord.
+		# Curves and offset parallel lanes can enter a station at a very
+		# different heading from the line joining the station centers.
+		var direction := _get_track_edge_outward_tangent(edge, station_index)
+		if direction == Vector2.ZERO:
+			var neighbor_index := end_index if start_index == station_index else start_index
+			if neighbor_index >= 0 and neighbor_index < stations.size():
+				direction = (stations[neighbor_index] - stations[station_index]).normalized()
+		if direction != Vector2.ZERO:
+			directions.append(direction)
 	return directions
 
 func _find_connected_track_tangent(endpoint_position: Vector2, preferred_direction: Vector2, at_curve_end: bool) -> Vector2:
