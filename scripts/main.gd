@@ -71,30 +71,26 @@ var polled_touch_active := false
 var polled_touch_last_position := Vector2.ZERO
 
 func _process(_delta: float) -> void:
-	# Poll the Android touch state as a fallback for devices where drag
-	# notifications are not consistently delivered to Node2D._input().
+	# Keep this readout diagnostic-only. Gesture movement is handled by the
+	# actual input events so touch polling cannot double-apply camera motion.
 	var touch_count := Input.get_touch_count()
-	if touch_count == 1:
-		var current_position := Input.get_touch_position(0)
-		if polled_touch_active:
-			var pan_delta := current_position - polled_touch_last_position
-			if not pan_delta.is_zero_approx():
-				_pan_camera(pan_delta)
-				hud.set_input_status("MAP DRAG · POLLED TOUCH")
-		else:
-			polled_touch_active = true
-		polled_touch_last_position = current_position
-	else:
-		polled_touch_active = false
+	if touch_count > 0:
+		hud.set_input_status("TOUCH POLL %d" % touch_count)
 
 func _input(event: InputEvent) -> void:
 	if event is InputEventScreenTouch:
+		hud.set_input_status("RAW SCREEN DOWN" if event.pressed else "RAW SCREEN UP")
 		_handle_screen_touch(event)
 	elif event is InputEventScreenDrag:
+		hud.set_input_status("RAW SCREEN DRAG")
 		_handle_screen_drag(event)
 	elif event is InputEventMouseButton:
+		if event.button_index == MOUSE_BUTTON_LEFT:
+			hud.set_input_status("RAW MOUSE DOWN" if event.pressed else "RAW MOUSE UP")
 		_handle_mouse_button(event)
-	elif event is InputEventMouseMotion and (mouse_pointer_down or (event.button_mask & MOUSE_BUTTON_MASK_LEFT) != 0):
+	elif event is InputEventMouseMotion:
+		hud.set_input_status("RAW MOUSE MOVE · MASK %d" % event.button_mask)
+		if mouse_pointer_down or (event.button_mask & MOUSE_BUTTON_MASK_LEFT) != 0:
 		if curve_handle_dragging and curve_handle_touch_index == -2:
 			_move_curve_handle(event.position)
 			queue_redraw()
@@ -173,9 +169,9 @@ func _handle_screen_drag(event: InputEventScreenDrag) -> void:
 	if event.position.distance_to(start) > TAP_DRAG_THRESHOLD:
 		touch_moved[event.index] = true
 	if active_touches.size() == 1:
-		# One-finger panning is handled by _process() polling so it also
-		# works on Android builds that omit ScreenDrag notifications.
-		hud.set_input_status("TOUCH HELD")
+		if not pan_delta.is_zero_approx():
+			_pan_camera(pan_delta)
+		hud.set_input_status("SCREEN DRAG · PAN")
 	elif active_touches.size() >= 2:
 		_update_pinch_zoom()
 		hud.set_input_status("PINCH ZOOM")
