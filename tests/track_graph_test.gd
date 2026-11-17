@@ -157,7 +157,7 @@ func _test_route_engine_uses_curved_geometry() -> void:
 	assert(route.size() == 3, "Reachable route should return nodes, edges and distance")
 	assert(route["edge_ids"] == [first_curve, second_curve], "Route should compare sampled curve length rather than the direct edge chord")
 	assert(route["node_ids"] == [start, bend, finish], "Route should preserve ordered intermediate nodes")
-	assert(is_equal_approx(float(route["total_length"]), start.distance_to(Vector2(100, 20)) + Vector2(100, 20).distance_to(Vector2(200, 0))), "Route length should sum selected edge geometry")
+	assert(is_equal_approx(float(route["total_length"]), Vector2.ZERO.distance_to(Vector2(100, 20)) + Vector2(100, 20).distance_to(Vector2(200, 0))), "Route length should sum selected edge geometry")
 	assert(direct > 0, "Long curved alternative should remain in the graph")
 
 func _test_route_engine_handles_unreachable_and_same_node() -> void:
