@@ -44,3 +44,40 @@ static func distance_to_centerline(record: Dictionary, point: Vector2) -> float:
 	var angle := float(record.get("rotation", 0.0))
 	var local_point := (point - center).rotated(-angle)
 	return absf(local_point.y)
+
+static func distance_to_footprint(record: Dictionary, point: Vector2) -> float:
+	var footprint := get_footprint(record)
+	if footprint.size() != 4:
+		return INF
+	if Geometry2D.is_point_in_polygon(point, footprint):
+		return 0.0
+	var closest_distance := INF
+	for index in range(footprint.size()):
+		var next_index := (index + 1) % footprint.size()
+		var closest := Geometry2D.get_closest_point_to_segment(point, footprint[index], footprint[next_index])
+		closest_distance = minf(closest_distance, point.distance_to(closest))
+	return closest_distance
+
+static func minimum_path_clearance(record: Dictionary, path: PackedVector2Array, sample_spacing: float = 4.0) -> float:
+	if path.is_empty() or get_footprint(record).size() != 4:
+		return INF
+	if path.size() == 1:
+		return distance_to_footprint(record, path[0])
+	var spacing := maxf(sample_spacing, 0.5)
+	var minimum_distance := INF
+	for index in range(1, path.size()):
+		var start := path[index - 1]
+		var finish := path[index]
+		var segment_length := start.distance_to(finish)
+		var sample_count := maxi(1, int(ceil(segment_length / spacing)))
+		for sample_index in range(sample_count + 1):
+			var point := start.lerp(finish, float(sample_index) / float(sample_count))
+			minimum_distance = minf(minimum_distance, distance_to_footprint(record, point))
+			if is_zero_approx(minimum_distance):
+				return 0.0
+	return minimum_distance
+
+static func path_has_clearance(record: Dictionary, path: PackedVector2Array, clearance: float, sample_spacing: float = 4.0) -> bool:
+	if clearance < 0.0:
+		return false
+	return minimum_path_clearance(record, path, sample_spacing) >= clearance
