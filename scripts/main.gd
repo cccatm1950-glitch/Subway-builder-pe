@@ -859,6 +859,7 @@ func _add_track_edge(start_station: int, end_station: int, start_point: Vector2,
 			draw_end = merge_data["draw_end"]
 			for path in merge_data["paths"]:
 				junction_transition_paths.append(path)
+				_register_graph_transition_path(path, start_station if start_point.distance_to(stations[start_station]) <= 0.5 else end_station, lane_index)
 	track_segments.append(draw_start)
 	track_segments.append(draw_end)
 	var start_node := _get_or_create_lane_node(draw_start, start_station, lane_index, parallel_group)
@@ -879,6 +880,21 @@ func _add_track_edge(start_station: int, end_station: int, start_point: Vector2,
 	})
 	_register_lane_edge(next_track_edge_id, start_node, end_node)
 	next_track_edge_id += 1
+
+func _register_graph_transition_path(path: PackedVector2Array, station_index: int, lane_index: int) -> void:
+	if path.size() < 2:
+		return
+	# Reuse the exact endpoint nodes used by the primary track edge. This
+	# makes the transition a true graph connection, not a parallel drawing.
+	var start_node := _get_or_create_lane_node(path[0], station_index, lane_index, -1)
+	var end_node := _get_or_create_lane_node(path[path.size() - 1], station_index, lane_index, -1)
+	var graph_start := int(graph_node_ids.get(start_node, -1))
+	var graph_end := int(graph_node_ids.get(end_node, -1))
+	if graph_start < 0 or graph_end < 0 or graph_start == graph_end:
+		push_error("Could not resolve graph endpoints for station merge transition")
+		return
+	if track_graph.add_edge(graph_start, graph_end, "transition", path, -1, lane_index) < 0:
+		push_error("Canonical graph rejected station merge transition")
 
 func _build_parallel_merge_transition(start_station: int, end_station: int, start_point: Vector2, end_point: Vector2) -> Dictionary:
 	if start_station < 0 or end_station < 0 or start_station >= stations.size() or end_station >= stations.size():
@@ -991,6 +1007,11 @@ func _build_parallel_merge_transition(start_station: int, end_station: int, star
 		merge_point = through_point + outward_direction * merge_length
 		var first_control := merging_point + outward_direction * (merge_length * 0.38)
 		var second_control := merge_point - outward_direction * (merge_length * 0.24)
+		# The retained lane must continue into the same merge node as the
+		# converging lane. Previously it ended at the station while the new
+		# single track began beyond it, leaving a visible but disconnected gap.
+		var through_path := PackedVector2Array([through_point, merge_point])
+		paths.append(through_path)
 		var merge_path := PackedVector2Array()
 		for step in range(41):
 			var t := float(step) / 40.0
