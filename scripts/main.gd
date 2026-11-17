@@ -654,53 +654,64 @@ func _make_curve_points(start_point: Vector2, control_point: Vector2, end_point:
 	var points := PackedVector2Array()
 	var chord := end_point - start_point
 	var chord_length := chord.length()
-	var chord_direction := chord.normalized() if chord_length > 0.001 else Vector2.RIGHT
-	var start_to_handle := control_point - start_point
-	var handle_to_end := end_point - control_point
-	var first_length := start_to_handle.length()
-	var second_length := handle_to_end.length()
-	if first_length < 0.001 or second_length < 0.001:
+	if chord_length < 0.5:
 		return points
 
-	var start_track_tangent := start_tangent_override if start_tangent_override != Vector2.ZERO else _find_connected_track_tangent(start_point, start_to_handle.normalized(), false)
-	var end_track_tangent := end_tangent_override if end_tangent_override != Vector2.ZERO else _find_connected_track_tangent(end_point, handle_to_end.normalized(), true)
-	var start_tangent := start_track_tangent if start_track_tangent != Vector2.ZERO else start_to_handle.normalized()
-	var end_tangent := end_track_tangent if end_track_tangent != Vector2.ZERO else handle_to_end.normalized()
-	if start_tangent == Vector2.ZERO:
+	var chord_direction := chord / chord_length
+	var start_to_handle := control_point - start_point
+	var handle_to_end := end_point - control_point
+	if start_to_handle.length_squared() < 0.0001 or handle_to_end.length_squared() < 0.0001:
+		return points
+
+	var start_track_tangent := start_tangent_override if start_tangent_override.length_squared() > 0.001 else _find_connected_track_tangent(start_point, start_to_handle.normalized(), false)
+	var end_track_tangent := end_tangent_override if end_tangent_override.length_squared() > 0.001 else _find_connected_track_tangent(end_point, handle_to_end.normalized(), true)
+	var start_tangent := start_track_tangent.normalized() if start_track_tangent.length_squared() > 0.001 else start_to_handle.normalized()
+	var end_tangent := end_track_tangent.normalized() if end_track_tangent.length_squared() > 0.001 else handle_to_end.normalized()
+	if start_tangent.length_squared() < 0.001:
 		start_tangent = chord_direction
-	if end_tangent == Vector2.ZERO:
+	if end_tangent.length_squared() < 0.001:
 		end_tangent = chord_direction
 
-	# Build two cubic sections with matched first and second derivatives
-	# at the draggable handle. Matching curvature removes the visible "knee"
-	# where the two halves previously met.
-	var start_handle_length := minf(first_length * 0.38, maxf(chord_length * 0.22, 8.0))
-	var end_handle_length := minf(second_length * 0.38, maxf(chord_length * 0.22, 8.0))
+	# Approximate a modified-Euler track transition by integrating a smooth
+	# curvature/heading profile. The draggable handle controls both arc length
+	# and signed lateral bow; connected track tangents remain exact at the ends.
+	var start_heading := start_tangent.angle()
+	var end_heading := end_tangent.angle()
+	var heading_change := wrapf(end_heading - start_heading, -PI, PI)
+	var chord_normal := Vector2(-chord_direction.y, chord_direction.x)
+	var handle_offset := (control_point - (start_point + end_point) * 0.5).dot(chord_normal)
+	var bow_angle := clampf((handle_offset / chord_length) * 1.35, -1.15, 1.15)
+	var requested_length := (start_to_handle.length() + handle_to_end.length()) * 0.9
+	var arc_length := clampf(maxf(chord_length, requested_length), chord_length, chord_length * 3.0)
 
-	var a0 := start_point
-	var a1 := start_point + start_tangent * start_handle_length
-	var b2 := end_point - end_tangent * end_handle_length
-	# For equal parameter intervals, this center vector makes the second
-	# derivatives equal on both sides of the handle (C2 continuity).
-	var center_vector := (b2 - a1) * 0.25
-	var max_center_handle := minf(minf(first_length, second_length) * 0.32, maxf(chord_length * 0.18, 6.0))
-	if center_vector.length() > max_center_handle:
-		center_vector = center_vector.normalized() * max_center_handle
-	var a2 := control_point - center_vector
-	var a3 := control_point
-	var b0 := control_point
-	var b1 := control_point + center_vector
-	var b3 := end_point
-	for step in range(21):
-		var t := float(step) / 20.0
-		var u := 1.0 - t
-		var first_point := u * u * u * a0 + 3.0 * u * u * t * a1 + 3.0 * u * t * t * a2 + t * t * t * a3
-		points.append(first_point)
-	for step in range(1, 21):
-		var t := float(step) / 20.0
-		var u := 1.0 - t
-		var second_point := u * u * u * b0 + 3.0 * u * u * t * b1 + 3.0 * u * t * t * b2 + t * t * t * b3
-		points.append(second_point)
+	var sample_count := clampi(int(ceil(arc_length / 8.0)), 48, 160)
+	var step_length := arc_length / float(sample_count)
+	var position := start_point
+	points.append(position)
+	for step in range(sample_count):
+		var u0 := float(step) / float(sample_count)
+		var u1 := float(step + 1) / float(sample_count)
+		var smooth0 := u0 * u0 * (3.0 - 2.0 * u0)
+		var smooth1 := u1 * u1 * (3.0 - 2.0 * u1)
+		var bow0 := sin(PI * u0)
+		var bow1 := sin(PI * u1)
+		var heading0 := start_heading + heading_change * smooth0 + bow_angle * bow0 * bow0
+		var heading1 := start_heading + heading_change * smooth1 + bow_angle * bow1 * bow1
+		# Heun's (modified Euler) step for the planar tangent field.
+		var direction0 := Vector2(cos(heading0), sin(heading0))
+		var predictor := position + direction0 * step_length
+		var direction1 := Vector2(cos(heading1), sin(heading1))
+		position += (direction0 + direction1) * (0.5 * step_length)
+		points.append(position)
+
+	# Close the small numerical endpoint residual without changing endpoint
+	# tangents: smoothstep has zero derivative at both ends.
+	var endpoint_error := end_point - points[points.size() - 1]
+	for index in range(1, points.size()):
+		var u := float(index) / float(sample_count)
+		var weight := u * u * (3.0 - 2.0 * u)
+		points[index] += endpoint_error * weight
+	points[points.size() - 1] = end_point
 	return points
 
 func _get_or_create_lane_node(position: Vector2, station_index: int, lane_index: int, parallel_group: int) -> int:
