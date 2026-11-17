@@ -52,8 +52,6 @@ static func offset_polyline(points: PackedVector2Array, offset: float, miter_lim
 			segment_normals.append(Vector2(-direction.y, direction.x))
 	for index in range(points.size()):
 		var normal := Vector2.ZERO
-		var miter_position := Vector2.ZERO
-		var has_miter_position := false
 		if index == 0:
 			normal = segment_normals[0]
 		elif index == points.size() - 1:
@@ -79,8 +77,10 @@ static func offset_polyline(points: PackedVector2Array, offset: float, miter_lim
 						var max_length := absf(offset) * limit
 						if absf(miter_length) > max_length:
 							normal = next_normal * signf(miter_length) * limit
-						else:
-						normal = miter * miter_length / maxf(absf(offset), EPSILON)
+							result.append(points[index] + normal * offset)
+							continue
+						result.append(points[index] + miter * miter_length)
+						continue
 		result.append(points[index] + normal * offset)
 	return result
 
