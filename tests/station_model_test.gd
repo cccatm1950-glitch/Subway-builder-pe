@@ -11,6 +11,7 @@ func _run_tests() -> void:
 	_test_dimensions_are_clamped()
 	_test_invalid_records_are_safe()
 	_test_path_clearance()
+	_test_platform_axis_alignment()
 	print("STATION_MODEL_TESTS: PASS")
 	quit(0)
 
@@ -49,3 +50,13 @@ func _test_path_clearance() -> void:
 	assert(StationModelScript.path_has_clearance(record, alongside_platform, 12.0), "A path outside the requested clearance should pass")
 	assert(not StationModelScript.path_has_clearance(record, alongside_platform, 18.0), "A path inside the requested clearance should fail")
 	assert(not StationModelScript.path_has_clearance(record, through_platform, 1.0), "A path through the platform must fail any positive clearance")
+
+func _test_platform_axis_alignment() -> void:
+	var opposite_directions: Array[Vector2] = [Vector2.RIGHT, Vector2.LEFT]
+	assert(absf(StationModelScript.resolve_rotation(opposite_directions)) < 0.0001, "Opposing approaches should resolve to the same platform axis")
+	var angled_directions: Array[Vector2] = [Vector2(1, 1).normalized(), Vector2(-1, -1).normalized()]
+	assert(is_equal_approx(StationModelScript.resolve_rotation(angled_directions), PI * 0.25), "Angled opposing approaches should preserve their shared axis")
+	var ambiguous_branch: Array[Vector2] = [Vector2.RIGHT, Vector2.UP]
+	assert(is_equal_approx(StationModelScript.resolve_rotation(ambiguous_branch, 0.37), 0.37), "Perpendicular branch approaches should preserve the existing platform orientation")
+	var no_approaches: Array[Vector2] = []
+	assert(is_equal_approx(StationModelScript.resolve_rotation(no_approaches, 0.62), 0.62), "An unconnected station should preserve its fallback orientation")
