@@ -81,3 +81,20 @@ static func path_has_clearance(record: Dictionary, path: PackedVector2Array, cle
 	if clearance < 0.0:
 		return false
 	return minimum_path_clearance(record, path, sample_spacing) >= clearance
+
+# Treat opposite approach directions as the same platform axis. A branch with
+# equally weighted perpendicular approaches is ambiguous and keeps its fallback.
+static func resolve_rotation(directions: Array[Vector2], fallback_rotation: float = 0.0) -> float:
+	var axis_x := 0.0
+	var axis_y := 0.0
+	var valid_count := 0
+	for direction in directions:
+		if direction.length_squared() <= 0.0001:
+			continue
+		var angle := direction.angle()
+		axis_x += cos(angle * 2.0)
+		axis_y += sin(angle * 2.0)
+		valid_count += 1
+	if valid_count == 0 or Vector2(axis_x, axis_y).length_squared() <= 0.0001:
+		return fallback_rotation
+	return atan2(axis_y, axis_x) * 0.5
