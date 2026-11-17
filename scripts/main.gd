@@ -1365,7 +1365,12 @@ func _draw() -> void:
 			draw_arc(station, 23.0, 0.0, TAU, 32, Color(1.0, 1.0, 1.0), 2.0, true)
 
 func _draw_station_platforms() -> void:
-	for record in station_records:
+	for index in range(station_records.size()):
+		var record: Dictionary = station_records[index].duplicate()
+		# Align the platform's long axis with the station's approach tracks.
+		# Perpendicular branches are ambiguous and retain the last valid axis.
+		if index < stations.size():
+			record["rotation"] = StationModelScript.resolve_rotation(_get_station_track_directions(index), float(record.get("rotation", 0.0)))
 		var footprint := StationModelScript.get_footprint(record)
 		if footprint.size() != 4:
 			continue
