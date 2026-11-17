@@ -1,6 +1,7 @@
 extends SceneTree
 
 const TrackGraphScript = preload("res://scripts/railway/track_graph.gd")
+const JunctionEngineScript = preload("res://scripts/railway/junction_engine.gd")
 
 func _initialize() -> void:
 	call_deferred("_run_tests")
@@ -13,6 +14,7 @@ func _run_tests() -> void:
 	_test_geometry_updates()
 	_test_parallel_to_single_merge_topology()
 	_test_branch_turnout_preserves_other_lane()
+	_test_branch_lane_selection_both_sides_and_directions()
 	print("TRACK_GRAPH_TESTS: PASS")
 	quit(0)
 
@@ -109,3 +111,18 @@ func _test_branch_turnout_preserves_other_lane() -> void:
 	assert(graph.get_incident_edges(turnout_merge).size() == 2, "Turnout must share its merge node with the outgoing branch")
 	assert(graph.get_other_endpoint(turnout, turnout_merge) == selected_lane, "Turnout must originate at the selected parallel lane")
 	assert(graph.validate().is_empty(), "Branch turnout topology should validate")
+
+func _test_branch_lane_selection_both_sides_and_directions() -> void:
+	var origin := Vector2.ZERO
+	var east := Vector2.RIGHT
+	var north_lane := Vector2(0, -24)
+	var south_lane := Vector2(0, 24)
+	var lanes: Array[Vector2] = [north_lane, south_lane]
+	assert(JunctionEngineScript.select_branch_lane_index(lanes, origin, east, Vector2(1, -1)) == 0, "Northeast branch should select north lane")
+	assert(JunctionEngineScript.select_branch_lane_index(lanes, origin, east, Vector2(1, 1)) == 1, "Southeast branch should select south lane")
+	assert(JunctionEngineScript.select_branch_lane_index(lanes, origin, -east, Vector2(-1, -1)) == 1, "Reversed southwest branch should select the geometrically correct lane")
+	assert(JunctionEngineScript.select_branch_lane_index(lanes, origin, -east, Vector2(-1, 1)) == 0, "Reversed northwest branch should select the geometrically correct lane")
+	var reversed_order: Array[Vector2] = [south_lane, north_lane]
+	assert(JunctionEngineScript.select_branch_lane_index(reversed_order, origin, east, Vector2(1, -1)) == 1, "Lane selection must not depend on array order")
+	assert(JunctionEngineScript.select_branch_lane_index(lanes, origin, east, east) == -1, "A straight continuation must not be classified as a branch-side selection")
+	assert(JunctionEngineScript.select_branch_lane_index(lanes, origin, Vector2.ZERO, Vector2.UP) == -1, "Degenerate directions must be rejected")
