@@ -776,7 +776,7 @@ func _get_track_edge_geometry(edge: Dictionary) -> PackedVector2Array:
 				var paths: Array = curve.get("paths", [])
 				if lane >= 0 and lane < paths.size():
 					return PackedVector2Array(paths[lane])
-	elif kind == "transition":
+	elif kind == "transition" or kind == "station_transfer":
 		var stored_path_index := int(edge.get("transition_path_index", -1))
 		if stored_path_index >= 0 and stored_path_index < junction_transition_paths.size():
 			return junction_transition_paths[stored_path_index]
@@ -1085,13 +1085,13 @@ func _add_parallel_track_pair_from_anchors(start_station: int, end_station: int,
 		if start_connector.size() > 1 and start_node != lane_start:
 			var start_path_index := junction_transition_paths.size()
 			junction_transition_paths.append(start_connector)
-			track_edges.append({"id": next_track_edge_id, "start_node": start_node, "end_node": lane_start, "start_station": start_station, "end_station": start_station, "start_point": start_position, "end_point": lane_starts[lane], "kind": "transition", "transition_path_index": start_path_index, "parallel_group": -1, "lane_index": lane, "lane_count": 1, "centerline_spacing": 0.0})
+			track_edges.append({"id": next_track_edge_id, "start_node": start_node, "end_node": lane_start, "start_station": start_station, "end_station": start_station, "start_point": start_position, "end_point": lane_starts[lane], "kind": "station_transfer", "transition_path_index": start_path_index, "parallel_group": -1, "lane_index": lane, "lane_count": 1, "centerline_spacing": 0.0})
 			_register_lane_edge(next_track_edge_id, start_node, lane_start)
 			next_track_edge_id += 1
 		if end_connector.size() > 1 and end_node != lane_end:
 			var end_path_index := junction_transition_paths.size()
 			junction_transition_paths.append(end_connector)
-			track_edges.append({"id": next_track_edge_id, "start_node": lane_end, "end_node": end_node, "start_station": end_station, "end_station": end_station, "start_point": lane_ends[lane], "end_point": end_position, "kind": "transition", "transition_path_index": end_path_index, "parallel_group": -1, "lane_index": lane, "lane_count": 1, "centerline_spacing": 0.0})
+			track_edges.append({"id": next_track_edge_id, "start_node": lane_end, "end_node": end_node, "start_station": end_station, "end_station": end_station, "start_point": lane_ends[lane], "end_point": end_position, "kind": "station_transfer", "transition_path_index": end_path_index, "parallel_group": -1, "lane_index": lane, "lane_count": 1, "centerline_spacing": 0.0})
 			_register_lane_edge(next_track_edge_id, lane_end, end_node)
 			next_track_edge_id += 1
 	queue_redraw()
@@ -1125,9 +1125,11 @@ func _get_station_track_degree(station_index: int) -> int:
 	var degree := 0
 	var counted_parallel_groups: Dictionary = {}
 	for edge in track_edges:
+		if String(edge.get("kind", "")) == "station_transfer":
+			continue
 		if int(edge.get("start_station", -1)) != station_index and int(edge.get("end_station", -1)) != station_index:
 			continue
-		var parallel_group := int(edge.get("parallel_group", -1))
+		var parallel_group := int(edge.get("parallel_group", -1)
 		if parallel_group >= 0:
 			if counted_parallel_groups.has(parallel_group):
 				continue
@@ -1172,6 +1174,8 @@ func _get_station_track_directions(station_index: int) -> Array[Vector2]:
 	if station_index < 0 or station_index >= stations.size():
 		return directions
 	for edge in track_edges:
+		if String(edge.get("kind", "")) == "station_transfer":
+			continue
 		var start_index := int(edge.get("start_station", -1))
 		var end_index := int(edge.get("end_station", -1))
 		if start_index != station_index and end_index != station_index:
@@ -1387,7 +1391,7 @@ func _draw_canonical_track_edges() -> void:
 	for graph_edge_id in track_graph.get_edge_ids():
 		var edge := track_graph.get_edge(int(graph_edge_id))
 		var points: PackedVector2Array = edge.get("points", PackedVector2Array())
-		if points.size() > 1:
+		if points.size() > 1 and bool(edge.get("renderable", true)):
 			draw_polyline(points, Color(0.24, 0.86, 0.78), 7.0, true)
 
 func _canonical_graph_contains_path(path: PackedVector2Array) -> bool:
