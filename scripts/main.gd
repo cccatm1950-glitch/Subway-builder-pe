@@ -562,6 +562,7 @@ func _move_curve_handle(screen_position: Vector2) -> void:
 					track_edges[edge_index]["end_point"] = end_position
 					_set_lane_node_position(int(track_edges[edge_index].get("start_node", -1)), start_position)
 					_set_lane_node_position(int(track_edges[edge_index].get("end_node", -1)), end_position)
+					_sync_graph_edge_geometry(track_edges[edge_index])
 			# The transition curves must move with the edited offset lanes. Keeping
 			# their original samples leaves gaps and stale connector strokes.
 			var start_anchor_positions: Array = parallel_curve.get("start_anchor_positions", [])
@@ -596,9 +597,13 @@ func _move_curve_handle(screen_position: Vector2) -> void:
 						transition_edge["end_point"] = path[0]
 					else:
 						transition_edge["start_point"] = path[path.size() - 1]
+					_sync_graph_edge_geometry(transition_edge)
 	elif editing_curve_index >= 0 and editing_curve_index < curve_segments.size():
 		var curve: Dictionary = curve_segments[editing_curve_index]
 		curve["control"] = _constrain_curve_control(curve["start"], new_control, curve["end"])
+		for edge in track_edges:
+			if String(edge.get("kind", "")) == "curve" and int(edge.get("start_node", -1)) == int(curve.get("start_node", -2)) and int(edge.get("end_node", -1)) == int(curve.get("end_node", -2)):
+				_sync_graph_edge_geometry(edge)
 	else:
 		if pending_curve_start_node >= 0 or (pending_curve_start >= 0 and pending_curve_start < stations.size()):
 			var start_fallback: Vector2 = stations[pending_curve_start] if pending_curve_start >= 0 and pending_curve_start < stations.size() else Vector2.ZERO
@@ -746,12 +751,72 @@ func _register_lane_edge(edge_id: int, start_node: int, end_node: int) -> void:
 	if source_edge.is_empty():
 		push_error("Cannot register railway edge %d: missing edge record" % edge_id)
 		return
-	var points := PackedVector2Array([Vector2(source_edge.get("start_point", Vector2.ZERO)), Vector2(source_edge.get("end_point", Vector2.ZERO))])
+	var points := _get_track_edge_geometry(source_edge)
 	var graph_edge := track_graph.add_edge(graph_start, graph_end, String(source_edge.get("kind", "single")), points, int(source_edge.get("parallel_group", -1)), int(source_edge.get("lane_index", 0)))
 	if graph_edge < 0:
 		push_error("Canonical graph rejected railway edge %d" % edge_id)
 	else:
 		graph_edge_ids[edge_id] = graph_edge
+
+func _get_track_edge_geometry(edge: Dictionary) -> PackedVector2Array:
+	var kind := String(edge.get("kind", "single"))
+	if kind == "curve":
+		for curve in curve_segments:
+			if int(curve.get("start_node", -1)) == int(edge.get("start_node", -2)) and int(curve.get("end_node", -1)) == int(edge.get("end_node", -2)):
+				return _make_curve_points(Vector2(curve["start"]), Vector2(curve["control"]), Vector2(curve["end"]), Vector2(curve.get("start_tangent", Vector2.ZERO)), Vector2(curve.get("end_tangent", Vector2.ZERO)))
+	elif kind == "parallel_curve":
+		for curve in parallel_curve_segments:
+			if int(curve.get("group_id", -1)) == int(edge.get("parallel_group", -2)):
+				var lane := int(edge.get("lane_index", 0))
+				var paths: Array = curve.get("paths", [])
+				if lane >= 0 and lane < paths.size():
+					return PackedVector2Array(paths[lane])
+	elif kind == "transition":
+		var group_id := int(edge.get("curve_group_id", -1))
+		if group_id >= 0:
+			for curve in parallel_curve_segments:
+				if int(curve.get("group_id", -1)) != group_id:
+					continue
+				var lane := int(edge.get("lane_index", -1))
+				var side_index := 0 if String(edge.get("transition_side", "")) == "start" else 1
+				var indices: Array = curve.get("transition_path_indices", [])
+				if lane >= 0 and lane < indices.size() and side_index < indices[lane].size():
+					var path_index := int(indices[lane][side_index])
+					if path_index >= 0 and path_index < junction_transition_paths.size():
+						return junction_transition_paths[path_index]
+	return PackedVector2Array([Vector2(edge.get("start_point", Vector2.ZERO)), Vector2(edge.get("end_point", Vector2.ZERO))])
+
+func _sync_graph_edge_geometry(edge: Dictionary) -> void:
+	var legacy_id := int(edge.get("id", -1))
+	var graph_id := int(graph_edge_ids.get(legacy_id, -1))
+	if graph_id >= 0:
+		var points := _get_track_edge_geometry(edge)
+		if not track_graph.update_edge_points(graph_id, points):
+			push_error("Could not synchronize canonical geometry for railway edge %d" % legacy_id)
+
+func get_graph_mirror_diagnostics() -> PackedStringArray:
+	var errors := track_graph.validate()
+	for legacy_node_id in graph_node_ids:
+		if not track_graph.has_node(int(graph_node_ids[legacy_node_id])):
+			errors.append("Legacy lane node %d has no canonical graph node" % int(legacy_node_id))
+	for legacy_edge_id in graph_edge_ids:
+		if not track_graph.has_edge(int(graph_edge_ids[legacy_edge_id])):
+			errors.append("Legacy track edge %d has no canonical graph edge" % int(legacy_edge_id))
+	for node in lane_nodes:
+		var legacy_node_id := int(node.get("id", -1))
+		if not graph_node_ids.has(legacy_node_id):
+			errors.append("Legacy lane node %d is missing from the graph map" % legacy_node_id)
+	for edge in track_edges:
+		var legacy_edge_id := int(edge.get("id", -1))
+		if not graph_edge_ids.has(legacy_edge_id):
+			errors.append("Legacy track edge %d is missing from the graph map" % legacy_edge_id)
+			continue
+		var graph_edge := track_graph.get_edge(int(graph_edge_ids[legacy_edge_id]))
+		var expected_start := int(graph_node_ids.get(int(edge.get("start_node", -1)), -1))
+		var expected_end := int(graph_node_ids.get(int(edge.get("end_node", -1)), -1))
+		if int(graph_edge.get("start_node_id", -1)) != expected_start or int(graph_edge.get("end_node_id", -1)) != expected_end:
+			errors.append("Legacy track edge %d endpoints differ from canonical graph" % legacy_edge_id)
+	return errors
 
 
 func _add_track_edge_from_anchors(start_station: int, end_station: int, start_point: Vector2, end_point: Vector2, start_anchor_node: int, end_anchor_node: int) -> void:
