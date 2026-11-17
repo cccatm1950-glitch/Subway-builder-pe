@@ -1330,6 +1330,7 @@ func _select_parallel_curve_mode() -> void:
 	hud.set_mode(build_mode, "TAP START  ·  DRAG SHARED CURVE HANDLE  ·  TAP END" if build_mode == "parallel_curve" else "DRAG TO MOVE  ·  PINCH TO ZOOM")
 
 func _draw() -> void:
+	_draw_station_platforms()
 	_draw_canonical_track_edges()
 	for path in junction_transition_paths:
 		if path.size() > 1 and not _canonical_graph_contains_path(path):
@@ -1362,6 +1363,16 @@ func _draw() -> void:
 		draw_arc(station, 16.0, 0.0, TAU, 32, Color(0.25, 0.88, 0.82), 2.0, true)
 		if build_mode == "track" and index == pending_track_start:
 			draw_arc(station, 23.0, 0.0, TAU, 32, Color(1.0, 1.0, 1.0), 2.0, true)
+
+func _draw_station_platforms() -> void:
+	for record in station_records:
+		var footprint := StationModelScript.get_footprint(record)
+		if footprint.size() != 4:
+			continue
+		draw_colored_polygon(footprint, Color(0.18, 0.28, 0.32, 0.92))
+		var outline := footprint.duplicate()
+		outline.append(footprint[0])
+		draw_polyline(outline, Color(0.62, 0.82, 0.84, 0.9), 2.0, true)
 
 func _draw_canonical_track_edges() -> void:
 	for graph_edge_id in track_graph.get_edge_ids():
