@@ -899,6 +899,18 @@ func _register_graph_transition_path(path: PackedVector2Array, station_index: in
 	if track_graph.add_edge(graph_start, graph_end, "transition", path, -1, lane_index) < 0:
 		push_error("Canonical graph rejected station merge transition")
 
+func _get_track_edge_outward_tangent(edge: Dictionary, station_index: int) -> Vector2:
+	# Station-to-station chords are not reliable headings for curved parallel
+	# approaches. Use the actual sampled lane geometry at the station endpoint.
+	var points := _get_track_edge_geometry(edge)
+	if points.size() < 2:
+		return Vector2.ZERO
+	if int(edge.get("start_station", -1)) == station_index:
+		return (points[1] - points[0]).normalized()
+	if int(edge.get("end_station", -1)) == station_index:
+		return (points[points.size() - 2] - points[points.size() - 1]).normalized()
+	return Vector2.ZERO
+
 func _build_parallel_merge_transition(start_station: int, end_station: int, start_point: Vector2, end_point: Vector2) -> Dictionary:
 	if start_station < 0 or end_station < 0 or start_station >= stations.size() or end_station >= stations.size():
 		return {}
@@ -933,7 +945,9 @@ func _build_parallel_merge_transition(start_station: int, end_station: int, star
 			neighbor = edge_start
 		if neighbor < 0 or neighbor >= stations.size():
 			continue
-		var pair_direction := (stations[neighbor] - stations[merge_station]).normalized()
+		var pair_direction := _get_track_edge_outward_tangent(edge, merge_station)
+		if pair_direction == Vector2.ZERO:
+			pair_direction = (stations[neighbor] - stations[merge_station]).normalized()
 		var alignment := pair_direction.dot(outward_direction)
 		if alignment > best_alignment:
 			best_alignment = alignment
@@ -973,7 +987,9 @@ func _build_parallel_merge_transition(start_station: int, end_station: int, star
 			var edge_end := int(edge.get("end_station", -1))
 			var neighbor := edge_end if edge_start == merge_station else edge_start
 			if neighbor >= 0 and neighbor < stations.size():
-				neighbor_direction = (stations[merge_station] - stations[neighbor]).normalized()
+				neighbor_direction = _get_track_edge_outward_tangent(edge, merge_station)
+				if neighbor_direction == Vector2.ZERO:
+					neighbor_direction = (stations[neighbor] - stations[merge_station]).normalized()
 				break
 		if neighbor_direction == Vector2.ZERO:
 			return {}
