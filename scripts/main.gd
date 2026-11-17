@@ -91,20 +91,20 @@ func _input(event: InputEvent) -> void:
 	elif event is InputEventMouseMotion:
 		hud.set_input_status("RAW MOUSE MOVE · MASK %d" % event.button_mask)
 		if mouse_pointer_down or (event.button_mask & MOUSE_BUTTON_MASK_LEFT) != 0:
-		if curve_handle_dragging and curve_handle_touch_index == -2:
-			_move_curve_handle(event.position)
-			queue_redraw()
-			return
-		if mouse_pointer_down:
-			if event.position.distance_to(mouse_pointer_start) > TAP_DRAG_THRESHOLD:
-				mouse_pointer_dragged = true
-			var pan_delta := event.position - mouse_pointer_last_position
-			if pan_delta.is_zero_approx():
-				pan_delta = event.relative
-			mouse_pointer_last_position = event.position
-			if not pan_delta.is_zero_approx():
-				_pan_camera(pan_delta)
-			hud.set_input_status("MOUSE DRAG")
+			if curve_handle_dragging and curve_handle_touch_index == -2:
+				_move_curve_handle(event.position)
+				queue_redraw()
+				return
+			if mouse_pointer_down:
+				if event.position.distance_to(mouse_pointer_start) > TAP_DRAG_THRESHOLD:
+					mouse_pointer_dragged = true
+				var pan_delta := event.position - mouse_pointer_last_position
+				if pan_delta.is_zero_approx():
+					pan_delta = event.relative
+				mouse_pointer_last_position = event.position
+				if not pan_delta.is_zero_approx():
+					_pan_camera(pan_delta)
+				hud.set_input_status("MOUSE DRAG")
 
 func _handle_screen_touch(event: InputEventScreenTouch) -> void:
 	if event.pressed:
