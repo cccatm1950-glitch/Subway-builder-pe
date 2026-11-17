@@ -120,8 +120,8 @@ func _test_branch_lane_selection_both_sides_and_directions() -> void:
 	var lanes: Array[Vector2] = [north_lane, south_lane]
 	assert(JunctionEngineScript.select_branch_lane_index(lanes, origin, east, Vector2(1, -1)) == 0, "Northeast branch should select north lane")
 	assert(JunctionEngineScript.select_branch_lane_index(lanes, origin, east, Vector2(1, 1)) == 1, "Southeast branch should select south lane")
-	assert(JunctionEngineScript.select_branch_lane_index(lanes, origin, -east, Vector2(-1, -1)) == 1, "Reversed southwest branch should select the geometrically correct lane")
-	assert(JunctionEngineScript.select_branch_lane_index(lanes, origin, -east, Vector2(-1, 1)) == 0, "Reversed northwest branch should select the geometrically correct lane")
+	assert(JunctionEngineScript.select_branch_lane_index(lanes, origin, -east, Vector2(-1, -1)) == 0, "Reversed southwest branch should select the geometrically correct lane")
+	assert(JunctionEngineScript.select_branch_lane_index(lanes, origin, -east, Vector2(-1, 1)) == 1, "Reversed northwest branch should select the geometrically correct lane")
 	var reversed_order: Array[Vector2] = [south_lane, north_lane]
 	assert(JunctionEngineScript.select_branch_lane_index(reversed_order, origin, east, Vector2(1, -1)) == 1, "Lane selection must not depend on array order")
 	assert(JunctionEngineScript.select_branch_lane_index(lanes, origin, east, east) == -1, "A straight continuation must not be classified as a branch-side selection")
