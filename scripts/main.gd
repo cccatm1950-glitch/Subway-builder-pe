@@ -2,6 +2,7 @@ extends Node2D
 
 const MIN_ZOOM := 0.45
 const MAX_ZOOM := 2.5
+const TrackGraphScript = preload("res://scripts/railway/track_graph.gd")
 const SNAP_SPACING := 32.0
 const TAP_DRAG_THRESHOLD := 16.0
 const STATION_PICK_RADIUS := 64.0
@@ -10,6 +11,9 @@ const PARALLEL_CENTERLINE_SPACING := 48.0
 @onready var camera: Camera2D = $Camera2D
 @onready var hud = $CanvasLayer/HUD
 
+var track_graph: TrackGraph
+var graph_node_ids: Dictionary = {}
+var graph_edge_ids: Dictionary = {}
 var active_touches: Dictionary = {}
 var touch_starts: Dictionary = {}
 var touch_moved: Dictionary = {}
@@ -44,6 +48,7 @@ var editing_curve_index := -1
 var editing_parallel_curve_index := -1
 
 func _ready() -> void:
+	track_graph = TrackGraphScript.new()
 	camera.enabled = true
 	camera.position = Vector2.ZERO
 	camera.zoom = Vector2.ONE
@@ -731,12 +736,18 @@ func _get_or_create_lane_node(position: Vector2, station_index: int, lane_index:
 		"lane_index": lane_index,
 		"parallel_group": parallel_group
 	})
+	# Keep the new canonical graph in lockstep while legacy drawing is migrated.
+	var graph_id := track_graph.add_node(position, station_index, parallel_group, lane_index)
+	graph_node_ids[node_id] = graph_id
 	return node_id
 
 func _set_lane_node_position(node_id: int, position: Vector2) -> void:
 	for index in range(lane_nodes.size()):
 		if int(lane_nodes[index].get("id", -1)) == node_id:
 			lane_nodes[index]["position"] = position
+			var graph_id := int(graph_node_ids.get(node_id, -1))
+			if graph_id >= 0:
+				track_graph.update_node_position(graph_id, position)
 			return
 
 func _register_lane_edge(edge_id: int, start_node: int, end_node: int) -> void:
@@ -747,6 +758,27 @@ func _register_lane_edge(edge_id: int, start_node: int, end_node: int) -> void:
 			if not incident_edges.has(edge_id):
 				incident_edges.append(edge_id)
 			lane_nodes[index]["edge_ids"] = incident_edges
+	# Mirror topology into the canonical graph. Geometry is refined on the
+	# graph edge as construction operations migrate off the legacy arrays.
+	var graph_start := int(graph_node_ids.get(start_node, -1))
+	var graph_end := int(graph_node_ids.get(end_node, -1))
+	if graph_start < 0 or graph_end < 0:
+		push_error("Cannot register railway edge %d: missing graph endpoint" % edge_id)
+		return
+	var source_edge: Dictionary = {}
+	for candidate in track_edges:
+		if int(candidate.get("id", -1)) == edge_id:
+			source_edge = candidate
+			break
+	if source_edge.is_empty():
+		push_error("Cannot register railway edge %d: missing edge record" % edge_id)
+		return
+	var points := PackedVector2Array([Vector2(source_edge.get("start_point", Vector2.ZERO)), Vector2(source_edge.get("end_point", Vector2.ZERO))])
+	var graph_edge := track_graph.add_edge(graph_start, graph_end, String(source_edge.get("kind", "single")), points, int(source_edge.get("parallel_group", -1)), int(source_edge.get("lane_index", 0)))
+	if graph_edge < 0:
+		push_error("Canonical graph rejected railway edge %d" % edge_id)
+	else:
+		graph_edge_ids[edge_id] = graph_edge
 
 
 func _add_track_edge_from_anchors(start_station: int, end_station: int, start_point: Vector2, end_point: Vector2, start_anchor_node: int, end_anchor_node: int) -> void:
