@@ -987,7 +987,7 @@ func _build_parallel_merge_transition(start_station: int, end_station: int, star
 			var edge_end := int(edge.get("end_station", -1))
 			var neighbor := edge_end if edge_start == merge_station else edge_start
 			if neighbor >= 0 and neighbor < stations.size():
-				neighbor_direction = _get_track_edge_outward_tangent(edge, merge_station)
+				neighbor_direction = -_get_track_edge_outward_tangent(edge, merge_station)
 				if neighbor_direction == Vector2.ZERO:
 					neighbor_direction = (stations[neighbor] - stations[merge_station]).normalized()
 				break
