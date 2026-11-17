@@ -62,6 +62,12 @@ func remove_node(node_id: int) -> bool:
 	_nodes.erase(node_id)
 	return true
 
+func update_node_position(node_id: int, position: Vector2) -> bool:
+	if not _nodes.has(node_id):
+		return false
+	_nodes[node_id]["position"] = position
+	return true
+
 func has_node(node_id: int) -> bool:
 	return _nodes.has(node_id)
 
