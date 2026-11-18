@@ -13,6 +13,7 @@ func _run_tests() -> void:
 	_test_path_clearance()
 	_test_platform_axis_alignment()
 	_test_platform_edge_approach_points()
+	_test_corridor_is_separate_from_platform()
 	print("STATION_MODEL_TESTS: PASS")
 	quit(0)
 
@@ -75,3 +76,19 @@ func _test_platform_edge_approach_points() -> void:
 	var rotated = StationModelScript.create_record(10, Vector2(20, 30), 100.0, 20.0, PI * 0.5)
 	var rotated_approach := StationModelScript.get_approach_point(rotated, Vector2.DOWN, 16.0, 6.0)
 	assert(is_equal_approx(rotated_approach.x, 4.0) and is_equal_approx(rotated_approach.y, 86.0), "Rotated platform approach should follow its oriented footprint")
+
+
+func _test_corridor_is_separate_from_platform() -> void:
+	var record = StationModelScript.create_record(11, Vector2.ZERO)
+	assert(StationModelScript.get_corridor_footprint(record).is_empty(), "Unspecified corridor must remain undefined, not inherit platform bounds")
+	var corridor := PackedVector2Array([Vector2(-180, -72), Vector2(180, -72), Vector2(180, 72), Vector2(-180, 72)])
+	var updated: Dictionary = StationModelScript.set_corridor_footprint(record, corridor)
+	var platform: PackedVector2Array = StationModelScript.get_footprint(updated)
+	var stored_corridor: PackedVector2Array = StationModelScript.get_corridor_footprint(updated)
+	assert(platform.size() == 4 and stored_corridor.size() == 4, "Platform and corridor should be independent polygons")
+	assert(stored_corridor[0].distance_to(corridor[0]) < 0.001, "Corridor geometry should preserve authored coordinates")
+	assert(stored_corridor[0].distance_to(platform[0]) > 1.0, "Corridor must not alias the smaller platform footprint")
+	stored_corridor[0] = Vector2(999, 999)
+	assert(StationModelScript.get_corridor_footprint(updated)[0].distance_to(corridor[0]) < 0.001, "Returned corridor geometry must not mutate stored station data")
+	var cleared: Dictionary = StationModelScript.set_corridor_footprint(updated, PackedVector2Array())
+	assert(StationModelScript.get_corridor_footprint(cleared).is_empty(), "Invalid corridor geometry should be cleared safely")
