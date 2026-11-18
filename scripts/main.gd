@@ -43,10 +43,6 @@ var pending_track_start_position := Vector2.ZERO
 var pending_curve_start := -1
 var pending_curve_control := Vector2.ZERO
 var curve_stage := 0
-var mouse_pointer_down := false
-var mouse_pointer_start := Vector2.ZERO
-var mouse_pointer_last_position := Vector2.ZERO
-var mouse_pointer_dragged := false
 var curve_handle_dragging := false
 var curve_handle_touch_index := -1
 var editing_curve_index := -1
@@ -79,32 +75,11 @@ func _process(_delta: float) -> void:
 
 func _input(event: InputEvent) -> void:
 	if event is InputEventScreenTouch:
-		hud.set_input_status("RAW SCREEN DOWN" if event.pressed else "RAW SCREEN UP")
+		hud.set_input_status("TOUCH DOWN" if event.pressed else "TOUCH UP")
 		_handle_screen_touch(event)
 	elif event is InputEventScreenDrag:
-		hud.set_input_status("RAW SCREEN DRAG")
+		hud.set_input_status("TOUCH DRAG")
 		_handle_screen_drag(event)
-	elif event is InputEventMouseButton:
-		if event.button_index == MOUSE_BUTTON_LEFT:
-			hud.set_input_status("RAW MOUSE DOWN" if event.pressed else "RAW MOUSE UP")
-		_handle_mouse_button(event)
-	elif event is InputEventMouseMotion:
-		hud.set_input_status("RAW MOUSE MOVE · MASK %d" % event.button_mask)
-		if mouse_pointer_down or (event.button_mask & MOUSE_BUTTON_MASK_LEFT) != 0:
-			if curve_handle_dragging and curve_handle_touch_index == -2:
-				_move_curve_handle(event.position)
-				queue_redraw()
-				return
-			if mouse_pointer_down:
-				if event.position.distance_to(mouse_pointer_start) > TAP_DRAG_THRESHOLD:
-					mouse_pointer_dragged = true
-				var pan_delta := event.position - mouse_pointer_last_position
-				if pan_delta.is_zero_approx():
-					pan_delta = event.relative
-				mouse_pointer_last_position = event.position
-				if not pan_delta.is_zero_approx():
-					_pan_camera(pan_delta)
-				hud.set_input_status("MOUSE DRAG")
 
 func _handle_screen_touch(event: InputEventScreenTouch) -> void:
 	if event.pressed:
@@ -175,38 +150,6 @@ func _handle_screen_drag(event: InputEventScreenDrag) -> void:
 	elif active_touches.size() >= 2:
 		_update_pinch_zoom()
 		hud.set_input_status("PINCH ZOOM")
-
-func _handle_mouse_button(event: InputEventMouseButton) -> void:
-	if event.button_index == MOUSE_BUTTON_WHEEL_UP and event.pressed:
-		_zoom_in()
-	elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN and event.pressed:
-		_zoom_out()
-	elif event.button_index == MOUSE_BUTTON_LEFT:
-		if event.pressed:
-			if _try_begin_curve_handle_drag(event.position, -2):
-				return
-			if hud.is_ui_position(event.position):
-				return
-			mouse_pointer_down = true
-			mouse_pointer_start = event.position
-			mouse_pointer_last_position = event.position
-			mouse_pointer_dragged = false
-			hud.set_input_status("POINTER DOWN")
-		else:
-			if curve_handle_dragging and curve_handle_touch_index == -2:
-				curve_handle_dragging = false
-				curve_handle_touch_index = -1
-				editing_curve_index = -1
-				editing_parallel_curve_index = -1
-				hud.set_mode(build_mode, "BEND SET  ·  DRAG AGAIN OR TAP AN END STATION")
-				queue_redraw()
-				return
-			if mouse_pointer_down and not mouse_pointer_dragged and not hud.is_ui_position(event.position):
-				_handle_map_tap(event.position)
-				hud.set_input_status("POINTER TAP")
-			elif mouse_pointer_dragged:
-				hud.set_input_status("POINTER DRAG END")
-			mouse_pointer_down = false
 
 func _handle_map_tap(_screen_position: Vector2) -> void:
 	# Construction taps are routed to the fixed screen-center crosshair.
