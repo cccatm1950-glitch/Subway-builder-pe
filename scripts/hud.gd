@@ -21,17 +21,10 @@ var input_status_label: Label
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	mouse_filter = Control.MOUSE_FILTER_IGNORE
-
-	# A dedicated full-screen Control receives Android touch gestures on the
-	# map. Buttons are added later and therefore remain above this surface.
-	var map_touch_surface := Control.new()
-	map_touch_surface.name = "MapTouchSurface"
-	map_touch_surface.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	map_touch_surface.mouse_filter = Control.MOUSE_FILTER_STOP
-	map_touch_surface.focus_mode = Control.FOCUS_NONE
-	map_touch_surface.gui_input.connect(_on_map_touch_surface_gui_input)
-	add_child(map_touch_surface)
+	# Let the HUD itself receive map-area GUI input. Interactive child buttons
+	# remain on top and keep their normal pressed signals.
+	mouse_filter = Control.MOUSE_FILTER_STOP
+	gui_input.connect(_on_map_touch_surface_gui_input)
 
 	var title := Label.new()
 	title.text = "SUBWAY BUILDER"
@@ -42,6 +35,7 @@ func _ready() -> void:
 	add_child(title)
 
 	input_status_label = Label.new()
+	input_status_label.text = "HUD READY"
 	input_status_label.position = Vector2(24, 112)
 	input_status_label.size = Vector2(560, 34)
 	input_status_label.add_theme_color_override("font_color", Color(1.0, 0.72, 0.24))
@@ -157,8 +151,8 @@ func _ready() -> void:
 	add_child(zoom_out)
 
 func _on_map_touch_surface_gui_input(event: InputEvent) -> void:
-	# Android normally converts finger input to mouse events for GUI Controls.
-	# Forward both native touch events and emulated mouse events to the map.
+	# Android GUI input may arrive as native screen events or touch-emulated
+	# mouse events. Forward both; buttons above this HUD still handle themselves.
 	if event is InputEventScreenTouch or event is InputEventScreenDrag:
 		map_touch_event.emit(event)
 		accept_event()
