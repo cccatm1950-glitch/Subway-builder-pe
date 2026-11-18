@@ -157,7 +157,15 @@ func _ready() -> void:
 	add_child(zoom_out)
 
 func _on_map_touch_surface_gui_input(event: InputEvent) -> void:
+	# Android normally converts finger input to mouse events for GUI Controls.
+	# Forward both native touch events and emulated mouse events to the map.
 	if event is InputEventScreenTouch or event is InputEventScreenDrag:
+		map_touch_event.emit(event)
+		accept_event()
+	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+		map_touch_event.emit(event)
+		accept_event()
+	elif event is InputEventMouseMotion and (event.button_mask & MOUSE_BUTTON_MASK_LEFT) != 0:
 		map_touch_event.emit(event)
 		accept_event()
 
