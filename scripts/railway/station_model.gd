@@ -119,6 +119,53 @@ static func set_corridor_footprint(record: Dictionary, footprint: PackedVector2A
 	updated["corridor_footprint"] = footprint.duplicate() if footprint.size() >= 3 else PackedVector2Array()
 	return updated
 
+
+# Corridor queries operate only on the independently authored corridor polygon.
+# They intentionally return INF/false when no corridor has been defined.
+static func corridor_contains_point(record: Dictionary, point: Vector2) -> bool:
+	var corridor := get_corridor_footprint(record)
+	return corridor.size() >= 3 and Geometry2D.is_point_in_polygon(point, corridor)
+
+static func distance_to_corridor(record: Dictionary, point: Vector2) -> float:
+	return _distance_to_polygon(get_corridor_footprint(record), point)
+
+static func minimum_path_corridor_clearance(record: Dictionary, path: PackedVector2Array, sample_spacing: float = 4.0) -> float:
+	var corridor := get_corridor_footprint(record)
+	if corridor.size() < 3 or path.is_empty():
+		return INF
+	if path.size() == 1:
+		return _distance_to_polygon(corridor, path[0])
+	var spacing := maxf(sample_spacing, 0.5)
+	var minimum_distance := INF
+	for index in range(1, path.size()):
+		var start := path[index - 1]
+		var finish := path[index]
+		var segment_length := start.distance_to(finish)
+		var sample_count := maxi(1, int(ceil(segment_length / spacing)))
+		for sample_index in range(sample_count + 1):
+			var point := start.lerp(finish, float(sample_index) / float(sample_count))
+			minimum_distance = minf(minimum_distance, _distance_to_polygon(corridor, point))
+			if is_zero_approx(minimum_distance):
+				return 0.0
+	return minimum_distance
+
+static func path_has_corridor_clearance(record: Dictionary, path: PackedVector2Array, clearance: float, sample_spacing: float = 4.0) -> bool:
+	if clearance < 0.0:
+		return false
+	return minimum_path_corridor_clearance(record, path, sample_spacing) >= clearance
+
+static func _distance_to_polygon(polygon: PackedVector2Array, point: Vector2) -> float:
+	if polygon.size() < 3:
+		return INF
+	if Geometry2D.is_point_in_polygon(point, polygon):
+		return 0.0
+	var closest_distance := INF
+	for index in range(polygon.size()):
+		var next_index := (index + 1) % polygon.size()
+		var closest := Geometry2D.get_closest_point_to_segment(point, polygon[index], polygon[next_index])
+		closest_distance = minf(closest_distance, point.distance_to(closest))
+	return closest_distance
+
 # Treat opposite approach directions as the same platform axis. A branch with
 # equally weighted perpendicular approaches is ambiguous and keeps its fallback.
 static func resolve_rotation(directions: Array[Vector2], fallback_rotation: float = 0.0) -> float:
