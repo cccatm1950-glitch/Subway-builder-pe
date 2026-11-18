@@ -8,6 +8,7 @@ signal parallel_mode_requested
 signal parallel_curve_mode_requested
 signal curve_mode_requested
 signal cancel_build_requested
+signal map_touch_event(event: InputEvent)
 
 var coordinate_label: Label
 var hint_label: Label
@@ -21,6 +22,16 @@ var input_status_label: Label
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	# A dedicated full-screen Control receives Android touch gestures on the
+	# map. Buttons are added later and therefore remain above this surface.
+	var map_touch_surface := Control.new()
+	map_touch_surface.name = "MapTouchSurface"
+	map_touch_surface.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	map_touch_surface.mouse_filter = Control.MOUSE_FILTER_STOP
+	map_touch_surface.focus_mode = Control.FOCUS_NONE
+	map_touch_surface.gui_input.connect(_on_map_touch_surface_gui_input)
+	add_child(map_touch_surface)
 
 	var title := Label.new()
 	title.text = "SUBWAY BUILDER"
@@ -144,6 +155,11 @@ func _ready() -> void:
 	zoom_out.offset_bottom = -36
 	zoom_out.pressed.connect(func(): zoom_out_requested.emit())
 	add_child(zoom_out)
+
+func _on_map_touch_surface_gui_input(event: InputEvent) -> void:
+	if event is InputEventScreenTouch or event is InputEventScreenDrag:
+		map_touch_event.emit(event)
+		accept_event()
 
 func _make_action_button(caption: String) -> Button:
 	var button := _make_zoom_button(caption)
