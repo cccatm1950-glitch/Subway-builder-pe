@@ -49,6 +49,9 @@ var editing_curve_index := -1
 var editing_parallel_curve_index := -1
 
 func _ready() -> void:
+	# Diagnostic checkpoint: prove the Main scene's _ready reached execution.
+	hud.set_input_status("MAIN READY")
+	set_process_input(true)
 	track_graph = TrackGraphScript.new()
 	camera.enabled = true
 	camera.position = Vector2.ZERO
@@ -65,12 +68,17 @@ func _ready() -> void:
 
 func _input(event: InputEvent) -> void:
 	if event is InputEventScreenTouch:
+		hud.set_input_status("ROOT SCREEN TOUCH")
 		_handle_screen_touch(event)
 	elif event is InputEventScreenDrag:
+		hud.set_input_status("ROOT SCREEN DRAG")
 		_handle_screen_drag(event)
 	elif event is InputEventMouseButton:
+		if event.button_index == MOUSE_BUTTON_LEFT:
+			hud.set_input_status("ROOT MOUSE BUTTON")
 		_handle_mouse_button(event)
 	elif event is InputEventMouseMotion and (event.button_mask & MOUSE_BUTTON_MASK_LEFT) != 0:
+		hud.set_input_status("ROOT MOUSE DRAG")
 		if curve_handle_dragging and curve_handle_touch_index == -2:
 			_move_curve_handle(event.position)
 			queue_redraw()
