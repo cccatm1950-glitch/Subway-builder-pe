@@ -14,6 +14,7 @@ func _run_tests() -> void:
 	_test_platform_axis_alignment()
 	_test_platform_edge_approach_points()
 	_test_corridor_is_separate_from_platform()
+	_test_corridor_queries_and_clearance()
 	print("STATION_MODEL_TESTS: PASS")
 	quit(0)
 
@@ -92,3 +93,20 @@ func _test_corridor_is_separate_from_platform() -> void:
 	assert(StationModelScript.get_corridor_footprint(updated)[0].distance_to(corridor[0]) < 0.001, "Returned corridor geometry must not mutate stored station data")
 	var cleared: Dictionary = StationModelScript.set_corridor_footprint(updated, PackedVector2Array())
 	assert(StationModelScript.get_corridor_footprint(cleared).is_empty(), "Invalid corridor geometry should be cleared safely")
+
+func _test_corridor_queries_and_clearance() -> void:
+	var record = StationModelScript.create_record(12, Vector2.ZERO)
+	var corridor := PackedVector2Array([Vector2(-180, -72), Vector2(180, -72), Vector2(180, 72), Vector2(-180, 72)])
+	record = StationModelScript.set_corridor_footprint(record, corridor)
+	assert(StationModelScript.corridor_contains_point(record, Vector2.ZERO), "Corridor should contain its interior")
+	assert(not StationModelScript.corridor_contains_point(record, Vector2(200, 0)), "Corridor should reject exterior points")
+	assert(is_zero_approx(StationModelScript.distance_to_corridor(record, Vector2.ZERO)), "Interior corridor distance should be zero")
+	assert(is_equal_approx(StationModelScript.distance_to_corridor(record, Vector2(200, 0)), 20.0), "Corridor distance should use the nearest polygon edge")
+	var through_corridor := PackedVector2Array([Vector2(-220, 0), Vector2(220, 0)])
+	var outside_corridor := PackedVector2Array([Vector2(-220, 100), Vector2(220, 100)])
+	assert(is_zero_approx(StationModelScript.minimum_path_corridor_clearance(record, through_corridor)), "A path crossing the corridor should report zero clearance")
+	assert(is_equal_approx(StationModelScript.minimum_path_corridor_clearance(record, outside_corridor), 28.0), "Path clearance should be measured from the corridor boundary")
+	assert(StationModelScript.path_has_corridor_clearance(record, outside_corridor, 24.0), "Path beyond requested corridor clearance should pass")
+	assert(not StationModelScript.path_has_corridor_clearance(record, outside_corridor, 32.0), "Path inside requested corridor clearance should fail")
+	assert(is_inf(StationModelScript.distance_to_corridor(StationModelScript.create_record(13, Vector2.ZERO), Vector2.ZERO)), "Undefined corridor should not fall back to platform bounds")
+	assert(not StationModelScript.path_has_corridor_clearance(record, through_corridor, -1.0), "Negative corridor clearance must be rejected")
