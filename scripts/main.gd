@@ -47,6 +47,10 @@ var curve_handle_dragging := false
 var curve_handle_touch_index := -1
 var editing_curve_index := -1
 var editing_parallel_curve_index := -1
+var mouse_pointer_down := false
+var mouse_pointer_last_position := Vector2.ZERO
+var mouse_pointer_start := Vector2.ZERO
+var mouse_pointer_dragged := false
 
 func _ready() -> void:
 	# Diagnostic checkpoint: prove the Main scene's _ready reached execution.
