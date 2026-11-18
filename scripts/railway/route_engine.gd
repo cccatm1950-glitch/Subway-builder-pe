@@ -37,7 +37,7 @@ static func find_shortest_path(graph, start_node_id: int, end_node_id: int) -> D
 
 		for edge in graph.get_incident_edges(current_id):
 			var edge_id := int(edge.get("id", -1))
-			var neighbor_id := graph.get_other_endpoint(edge_id, current_id)
+			var neighbor_id: int = int(graph.get_other_endpoint(edge_id, current_id))
 			if neighbor_id < 0 or visited.has(neighbor_id):
 				continue
 			var points: PackedVector2Array = edge.get("points", PackedVector2Array())
