@@ -1134,7 +1134,7 @@ func _get_station_track_degree(station_index: int) -> int:
 			continue
 		if int(edge.get("start_station", -1)) != station_index and int(edge.get("end_station", -1)) != station_index:
 			continue
-		var parallel_group := int(edge.get("parallel_group", -1)
+		var parallel_group := int(edge.get("parallel_group", -1))
 		if parallel_group >= 0:
 			if counted_parallel_groups.has(parallel_group):
 				continue
