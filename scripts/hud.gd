@@ -23,7 +23,7 @@ func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	# Let the HUD itself receive map-area GUI input. Interactive child buttons
 	# remain on top and keep their normal pressed signals.
-	mouse_filter = Control.MOUSE_FILTER_STOP
+	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	
 	var title := Label.new()
 	title.text = "SUBWAY BUILDER"
@@ -148,29 +148,6 @@ func _ready() -> void:
 	zoom_out.offset_bottom = -36
 	zoom_out.pressed.connect(func(): zoom_out_requested.emit())
 	add_child(zoom_out)
-
-func _input(event: InputEvent) -> void:
-	# Capture Android's raw touch stream before Control GUI hit-testing.
-	# The main scene intentionally ignores mobile root input; this HUD owns it.
-	if event is InputEventScreenTouch or event is InputEventScreenDrag:
-		map_touch_event.emit(event)
-	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
-		map_touch_event.emit(event)
-	elif event is InputEventMouseMotion and (event.button_mask & MOUSE_BUTTON_MASK_LEFT) != 0:
-		map_touch_event.emit(event)
-
-func _on_map_touch_surface_gui_input(event: InputEvent) -> void:
-	# Android GUI input may arrive as native screen events or touch-emulated
-	# mouse events. Forward both; buttons above this HUD still handle themselves.
-	if event is InputEventScreenTouch or event is InputEventScreenDrag:
-		map_touch_event.emit(event)
-		accept_event()
-	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
-		map_touch_event.emit(event)
-		accept_event()
-	elif event is InputEventMouseMotion and (event.button_mask & MOUSE_BUTTON_MASK_LEFT) != 0:
-		map_touch_event.emit(event)
-		accept_event()
 
 func _make_action_button(caption: String) -> Button:
 	var button := _make_zoom_button(caption)
