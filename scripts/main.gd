@@ -63,23 +63,25 @@ func _ready() -> void:
 	_update_coordinate_readout()
 	hud.set_input_status("INPUT READY")
 
-var polled_touch_active := false
-var polled_touch_last_position := Vector2.ZERO
-
-func _process(_delta: float) -> void:
-	# Keep this readout diagnostic-only. Gesture movement is handled by the
-	# actual input events so touch polling cannot double-apply camera motion.
-	var touch_count := Input.get_touch_count()
-	if touch_count > 0:
-		hud.set_input_status("TOUCH POLL %d" % touch_count)
+var mouse_pointer_down := false
+var mouse_pointer_last_position := Vector2.ZERO
+var mouse_pointer_start := Vector2.ZERO
+var mouse_pointer_dragged := false
 
 func _input(event: InputEvent) -> void:
+	# Native Android touch is the primary interaction path. Mouse is only a
+	# fallback for desktop/testing and never drives the Android gesture path.
 	if event is InputEventScreenTouch:
-		hud.set_input_status("TOUCH DOWN" if event.pressed else "TOUCH UP")
 		_handle_screen_touch(event)
 	elif event is InputEventScreenDrag:
-		hud.set_input_status("TOUCH DRAG")
 		_handle_screen_drag(event)
+	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+		_handle_mouse_button(event)
+	elif event is InputEventMouseMotion and mouse_pointer_down:
+		var delta := event.position - mouse_pointer_last_position
+		mouse_pointer_last_position = event.position
+		if not delta.is_zero_approx():
+			_pan_camera(delta)
 
 func _handle_screen_touch(event: InputEventScreenTouch) -> void:
 	if event.pressed:
@@ -137,8 +139,9 @@ func _handle_screen_drag(event: InputEventScreenDrag) -> void:
 		return
 	if not active_touches.has(event.index):
 		return
-	var previous_position: Vector2 = active_touches[event.index]
-	var pan_delta := event.position - previous_position
+	var pan_delta := event.relative
+	if pan_delta.is_zero_approx():
+		pan_delta = event.position - Vector2(active_touches[event.index])
 	active_touches[event.index] = event.position
 	var start: Vector2 = touch_starts.get(event.index, event.position)
 	if event.position.distance_to(start) > TAP_DRAG_THRESHOLD:
@@ -150,6 +153,19 @@ func _handle_screen_drag(event: InputEventScreenDrag) -> void:
 	elif active_touches.size() >= 2:
 		_update_pinch_zoom()
 		hud.set_input_status("PINCH ZOOM")
+
+func _handle_mouse_button(event: InputEventMouseButton) -> void:
+	if event.pressed:
+		if hud.is_ui_position(event.position):
+			return
+		mouse_pointer_down = true
+		mouse_pointer_start = event.position
+		mouse_pointer_last_position = event.position
+		mouse_pointer_dragged = false
+	else:
+		if mouse_pointer_down and not mouse_pointer_dragged and not hud.is_ui_position(event.position):
+			_handle_map_tap(event.position)
+		mouse_pointer_down = false
 
 func _handle_map_tap(_screen_position: Vector2) -> void:
 	# Construction taps are routed to the fixed screen-center crosshair.
