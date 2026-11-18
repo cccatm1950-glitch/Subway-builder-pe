@@ -78,6 +78,8 @@ func _input(event: InputEvent) -> void:
 	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
 		_handle_mouse_button(event)
 	elif event is InputEventMouseMotion and mouse_pointer_down:
+		if event.position.distance_to(mouse_pointer_start) > TAP_DRAG_THRESHOLD:
+			mouse_pointer_dragged = true
 		var delta := event.position - mouse_pointer_last_position
 		mouse_pointer_last_position = event.position
 		if not delta.is_zero_approx():
