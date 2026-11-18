@@ -53,7 +53,6 @@ func _ready() -> void:
 	camera.enabled = true
 	camera.position = Vector2.ZERO
 	camera.zoom = Vector2.ONE
-	hud.map_touch_event.connect(_handle_hud_map_touch_event)
 	hud.zoom_in_requested.connect(_zoom_in)
 	hud.zoom_out_requested.connect(_zoom_out)
 	hud.station_mode_requested.connect(_select_station_mode)
@@ -64,30 +63,7 @@ func _ready() -> void:
 	_update_coordinate_readout()
 	hud.set_input_status("INPUT READY")
 
-var mouse_pointer_down := false
-var mouse_pointer_last_position := Vector2.ZERO
-var mouse_pointer_start := Vector2.ZERO
-var mouse_pointer_dragged := false
-
 func _input(event: InputEvent) -> void:
-	# On mobile, route touch-emulated mouse events through the HUD GUI surface.
-	# Keep root-level mouse handling as a desktop fallback only.
-	if OS.has_feature("mobile"):
-		return
-	if event is InputEventMouseButton:
-		_handle_mouse_button(event)
-	elif event is InputEventMouseMotion and (event.button_mask & MOUSE_BUTTON_MASK_LEFT) != 0:
-		if curve_handle_dragging and curve_handle_touch_index == -2:
-			_move_curve_handle(event.position)
-			queue_redraw()
-			return
-		if mouse_pointer_down:
-			if event.position.distance_to(mouse_pointer_start) > TAP_DRAG_THRESHOLD:
-				mouse_pointer_dragged = true
-			_pan_camera(event.relative)
-			hud.set_input_status("MOUSE DRAG")
-
-func _handle_hud_map_touch_event(event: InputEvent) -> void:
 	if event is InputEventScreenTouch:
 		_handle_screen_touch(event)
 	elif event is InputEventScreenDrag:
@@ -103,7 +79,7 @@ func _handle_hud_map_touch_event(event: InputEvent) -> void:
 			if event.position.distance_to(mouse_pointer_start) > TAP_DRAG_THRESHOLD:
 				mouse_pointer_dragged = true
 			_pan_camera(event.relative)
-			hud.set_input_status("MAP DRAG")
+			hud.set_input_status("MOUSE DRAG")
 
 func _handle_screen_touch(event: InputEventScreenTouch) -> void:
 	if event.pressed:
