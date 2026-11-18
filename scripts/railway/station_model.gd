@@ -102,6 +102,23 @@ static func get_approach_point(record: Dictionary, outward_direction: Vector2, l
 	var platform_support := half_length * axis_alignment + half_width * sqrt(maxf(0.0, 1.0 - axis_alignment * axis_alignment))
 	return Vector2(record.get("center", Vector2.ZERO)) + axis * (platform_support + maxf(clearance, 0.0)) + normal * lateral_offset
 
+# The corridor is an independently authored polygon. It may include track
+# approaches, switches and other station-area geometry beyond the platform.
+# An empty polygon means corridor dimensions have not yet been established;
+# callers must not silently substitute the platform footprint.
+static func get_corridor_footprint(record: Dictionary) -> PackedVector2Array:
+	if record.is_empty():
+		return PackedVector2Array()
+	var corridor: PackedVector2Array = record.get("corridor_footprint", PackedVector2Array())
+	if corridor.size() < 3:
+		return PackedVector2Array()
+	return corridor.duplicate()
+
+static func set_corridor_footprint(record: Dictionary, footprint: PackedVector2Array) -> Dictionary:
+	var updated := record.duplicate(true)
+	updated["corridor_footprint"] = footprint.duplicate() if footprint.size() >= 3 else PackedVector2Array()
+	return updated
+
 # Treat opposite approach directions as the same platform axis. A branch with
 # equally weighted perpendicular approaches is ambiguous and keeps its fallback.
 static func resolve_rotation(directions: Array[Vector2], fallback_rotation: float = 0.0) -> float:
