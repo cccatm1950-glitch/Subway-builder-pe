@@ -200,8 +200,8 @@ static func merge_track_envelope(envelope: Array[PackedVector2Array]) -> Array[P
 # Calculate the required corridor half-width using the desktop game's
 # clearance rule. outermost_track_center_offset is measured from the corridor
 # reference centerline to the outermost track centerline; all values must use
-# the same world-unit scale. The larger of the train envelope and platform
-# half-width is expanded by the train type's track clearance.
+# the same world-unit scale. The larger of the track envelope and platform
+# edge determines the corridor, with track clearance added to each.
 static func calculate_station_corridor_half_width(outermost_track_center_offset: float, track_width: float, parallel_track_spacing: float, track_clearance: float, platform_half_width: float) -> float:
 	if outermost_track_center_offset < 0.0 or track_width <= 0.0 or parallel_track_spacing < 0.0 or track_clearance < 0.0 or platform_half_width < 0.0:
 		return 0.0
