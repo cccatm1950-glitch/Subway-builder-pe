@@ -79,6 +79,28 @@ func _test_track_envelope_rejects_missing_width_and_paths() -> void:
 	assert(TrackGeometryScript.build_track_envelope(paths, 0.0).is_empty(), "Zero width should produce no envelope")
 	assert(TrackGeometryScript.build_track_envelope([PackedVector2Array([Vector2.ZERO])], 12.0).is_empty(), "Single-point paths should be ignored")
 
+
+func _test_station_path_collection_keeps_all_lane_types() -> void:
+	var straight := PackedVector2Array([Vector2(0, 0), Vector2(100, 0)])
+	var branch := PackedVector2Array([Vector2(0, 0), Vector2(40, 30), Vector2(80, 60)])
+	var parallel := PackedVector2Array([Vector2(0, 24), Vector2(100, 24)])
+	var transfer := PackedVector2Array([Vector2(0, 0), Vector2(0, 24)])
+	var edges: Array[Dictionary] = [
+		{"start_station": 3, "end_station": 8, "kind": "single", "geometry": straight},
+		{"start_station": 3, "end_station": 9, "kind": "curve", "geometry": branch},
+		{"start_station": 7, "end_station": 3, "kind": "parallel", "geometry": parallel},
+		{"start_station": 3, "end_station": 3, "kind": "station_transfer", "geometry": transfer},
+		{"start_station": 4, "end_station": 8, "kind": "single", "geometry": straight}
+	]
+	var paths: Array[PackedVector2Array] = TrackGeometryScript.collect_station_paths(edges, 3)
+	assert(paths.size() == 4, "Station collection should include single, curve, parallel and transfer paths")
+	assert(paths[0].size() == straight.size(), "Straight geometry should be preserved")
+	assert(paths[1].size() == branch.size(), "Curved geometry should be preserved")
+	assert(paths[2].size() == parallel.size(), "Parallel lane geometry should be preserved")
+	assert(paths[3].size() == transfer.size(), "Station transition geometry should be preserved")
+	assert(TrackGeometryScript.collect_station_paths(edges, 99).is_empty(), "Unrelated stations should have no paths")
+	assert(TrackGeometryScript.collect_station_paths(edges, -1).is_empty(), "Invalid station index should have no paths")
+
 func _envelope_contains(polygons: Array[PackedVector2Array], point: Vector2) -> bool:
 	for polygon in polygons:
 		if Geometry2D.is_point_in_polygon(point, polygon):
