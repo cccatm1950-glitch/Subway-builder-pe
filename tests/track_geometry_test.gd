@@ -74,7 +74,8 @@ func _test_track_envelope_covers_multi_path_geometry() -> void:
 
 func _test_track_envelope_rejects_missing_width_and_paths() -> void:
 	var paths: Array[PackedVector2Array] = [PackedVector2Array([Vector2.ZERO, Vector2(20, 0)])]
-	assert(TrackGeometryScript.build_track_envelope([], 12.0).is_empty(), "No paths should produce no envelope")
+	var no_paths: Array[PackedVector2Array] = []
+	assert(TrackGeometryScript.build_track_envelope(no_paths, 12.0).is_empty(), "No paths should produce no envelope")
 	assert(TrackGeometryScript.build_track_envelope(paths, 0.0).is_empty(), "Zero width should produce no envelope")
 	assert(TrackGeometryScript.build_track_envelope([PackedVector2Array([Vector2.ZERO])], 12.0).is_empty(), "Single-point paths should be ignored")
 
