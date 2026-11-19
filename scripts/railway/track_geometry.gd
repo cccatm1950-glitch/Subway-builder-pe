@@ -171,3 +171,36 @@ static func collect_station_paths_from_graph(graph, station_index: int) -> Array
 			"geometry": PackedVector2Array(graph_edge.get("points", PackedVector2Array()))
 		})
 	return collect_station_paths(edge_records, station_index)
+
+
+# Union overlapping envelope pieces into clean outer contours. Disconnected
+# components remain separate polygons; hole contours retain their winding.
+static func merge_track_envelope(envelope: Array[PackedVector2Array]) -> Array[PackedVector2Array]:
+	var merged: Array[PackedVector2Array] = []
+	for source_polygon in envelope:
+		if source_polygon.size() < 3:
+			continue
+		var pending: Array[PackedVector2Array] = [source_polygon.duplicate()]
+		var index := 0
+		while index < merged.size() and not pending.is_empty():
+			var next_pending: Array[PackedVector2Array] = []
+			for candidate in pending:
+				var union_result := Geometry2D.merge_polygons(merged[index], candidate)
+				if union_result.is_empty():
+					next_pending.append(candidate)
+				else:
+					for contour in union_result:
+						if contour.size() >= 3:
+							next_pending.append(contour)
+					merged.remove_at(index)
+					index = -1
+					break
+			if index == -1:
+				pending = next_pending
+				index = 0
+			else:
+				pending = next_pending
+				index += 1
+		for contour in pending:
+			merged.append(contour)
+	return merged
