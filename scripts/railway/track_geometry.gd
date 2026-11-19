@@ -95,6 +95,15 @@ static func make_parallel_pair(centerline: PackedVector2Array, spacing: float, m
 	pair.append(offset_polyline(centerline, -half_spacing, miter_limit))
 	return pair
 
+# Return the candidate endpoint indices in the order that best matches two
+# generated lanes. This keeps lane identity stable when the approach reverses.
+static func match_parallel_lane_order(path_positions: Array[Vector2], candidate_positions: Array[Vector2]) -> Array[int]:
+	if path_positions.size() != 2 or candidate_positions.size() != 2:
+		return []
+	var direct_cost := path_positions[0].distance_to(candidate_positions[0]) + path_positions[1].distance_to(candidate_positions[1])
+	var crossed_cost := path_positions[0].distance_to(candidate_positions[1]) + path_positions[1].distance_to(candidate_positions[0])
+	return [1, 0] if crossed_cost < direct_cost else [0, 1]
+
 static func endpoints_match(a: PackedVector2Array, b: PackedVector2Array, tolerance: float = 0.01) -> bool:
 	if a.size() < 2 or b.size() < 2:
 		return false
