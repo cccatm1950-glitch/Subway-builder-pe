@@ -5,13 +5,38 @@ class_name StationModel
 const DEFAULT_PLATFORM_LENGTH := 112.0
 const DEFAULT_PLATFORM_WIDTH := 28.0
 const MIN_PLATFORM_DIMENSION := 4.0
+const PLATFORM_TYPE_SIDE := "side"
+const PLATFORM_TYPE_ISLAND := "island"
+const SIDE_PLATFORM_WIDTH_METERS := 8.0
+const ISLAND_PLATFORM_WIDTH_METERS := 10.0
 
-static func create_record(station_id: int, center: Vector2, platform_length: float = DEFAULT_PLATFORM_LENGTH, platform_width: float = DEFAULT_PLATFORM_WIDTH, rotation: float = 0.0) -> Dictionary:
+# Desktop dimensions are kept in metres until the mobile world's scale is
+# explicitly calibrated. A non-positive scale preserves legacy world widths.
+static func get_platform_width_meters(platform_type: String) -> float:
+	match platform_type:
+		PLATFORM_TYPE_SIDE:
+			return SIDE_PLATFORM_WIDTH_METERS
+		PLATFORM_TYPE_ISLAND:
+			return ISLAND_PLATFORM_WIDTH_METERS
+	return 0.0
+
+static func get_platform_width_world_units(platform_type: String, world_units_per_meter: float) -> float:
+	var width_meters := get_platform_width_meters(platform_type)
+	if width_meters <= 0.0 or world_units_per_meter <= 0.0:
+		return 0.0
+	return width_meters * world_units_per_meter
+
+static func create_record(station_id: int, center: Vector2, platform_length: float = DEFAULT_PLATFORM_LENGTH, platform_width: float = DEFAULT_PLATFORM_WIDTH, rotation: float = 0.0, platform_type: String = PLATFORM_TYPE_SIDE, world_units_per_meter: float = 0.0) -> Dictionary:
+	var resolved_type := platform_type if get_platform_width_meters(platform_type) > 0.0 else PLATFORM_TYPE_SIDE
+	var calibrated_width := get_platform_width_world_units(resolved_type, world_units_per_meter)
+	var resolved_width := calibrated_width if calibrated_width > 0.0 else platform_width
 	return {
 		"id": station_id,
 		"center": center,
 		"platform_length": maxf(platform_length, MIN_PLATFORM_DIMENSION),
-		"platform_width": maxf(platform_width, MIN_PLATFORM_DIMENSION),
+		"platform_width": maxf(resolved_width, MIN_PLATFORM_DIMENSION),
+		"platform_type": resolved_type,
+		"platform_width_meters": get_platform_width_meters(resolved_type),
 		"rotation": rotation
 	}
 

@@ -3,6 +3,7 @@ extends Control
 signal zoom_in_requested
 signal zoom_out_requested
 signal station_mode_requested
+signal platform_type_selected(platform_type: String)
 signal track_mode_requested
 signal parallel_mode_requested
 signal parallel_curve_mode_requested
@@ -13,6 +14,8 @@ signal map_touch_event(event: InputEvent)
 var coordinate_label: Label
 var hint_label: Label
 var station_button: Button
+var platform_type_button: Button
+var selected_platform_type := "side"
 var track_button: Button
 var parallel_button: Button
 var parallel_curve_button: Button
@@ -32,6 +35,13 @@ func _ready() -> void:
 	title.add_theme_color_override("font_color", Color(0.91, 0.97, 1.0))
 	title.add_theme_font_size_override("font_size", 24)
 	add_child(title)
+
+	platform_type_button = _make_action_button("PLATFORM: SIDE  8m")
+	platform_type_button.position = Vector2(24, 150)
+	platform_type_button.size = Vector2(184, 44)
+	platform_type_button.add_theme_font_size_override("font_size", 12)
+	platform_type_button.pressed.connect(_toggle_platform_type)
+	add_child(platform_type_button)
 
 	input_status_label = Label.new()
 	input_status_label.text = "HUD READY"
@@ -148,6 +158,12 @@ func _ready() -> void:
 	zoom_out.offset_bottom = -36
 	zoom_out.pressed.connect(func(): zoom_out_requested.emit())
 	add_child(zoom_out)
+
+func _toggle_platform_type() -> void:
+	selected_platform_type = "island" if selected_platform_type == "side" else "side"
+	var width_label := "10m" if selected_platform_type == "island" else "8m"
+	platform_type_button.text = "PLATFORM: %s  %s" % [selected_platform_type.to_upper(), width_label]
+	platform_type_selected.emit(selected_platform_type)
 
 func _make_action_button(caption: String) -> Button:
 	var button := _make_zoom_button(caption)
