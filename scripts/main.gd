@@ -772,6 +772,25 @@ func _register_lane_edge(edge_id: int, start_node: int, end_node: int) -> void:
 	else:
 		graph_edge_ids[edge_id] = graph_edge
 
+# Resolve every canonical path incident to a station-owned lane node.
+# This includes sampled curves, parallel lanes, station transfers and graph-only
+# junction transitions; no platform or corridor dimensions are inferred here.
+func _get_station_track_paths(station_index: int) -> Array[PackedVector2Array]:
+	var edge_records: Array[Dictionary] = []
+	if station_index < 0 or track_graph == null:
+		return []
+	for graph_edge_id in track_graph.get_edge_ids():
+		var graph_edge: Dictionary = track_graph.get_edge(int(graph_edge_id))
+		var start_node: Dictionary = track_graph.get_node(int(graph_edge.get("start_node_id", -1)))
+		var end_node: Dictionary = track_graph.get_node(int(graph_edge.get("end_node_id", -1)))
+		edge_records.append({
+			"start_station": int(start_node.get("station_id", -1)),
+			"end_station": int(end_node.get("station_id", -1)),
+			"kind": String(graph_edge.get("kind", "single")),
+			"geometry": PackedVector2Array(graph_edge.get("points", PackedVector2Array()))
+		})
+	return TrackGeometryScript.collect_station_paths(edge_records, station_index)
+
 func _get_track_edge_geometry(edge: Dictionary) -> PackedVector2Array:
 	var kind := String(edge.get("kind", "single"))
 	if kind == "curve":
