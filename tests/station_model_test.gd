@@ -1,6 +1,7 @@
 extends SceneTree
 
 const StationModelScript = preload("res://scripts/railway/station_model.gd")
+const RailwayDimensionsScript = preload("res://scripts/railway/railway_dimensions.gd")
 
 func _initialize() -> void:
 	call_deferred("_run_tests")
@@ -17,6 +18,7 @@ func _run_tests() -> void:
 	_test_corridor_queries_and_clearance()
 	_test_irregular_corridor_and_angled_approach()
 	_test_multiple_corridor_contours_and_legacy_compatibility()
+	_test_canonical_desktop_metric_dimensions()
 	print("STATION_MODEL_TESTS: PASS")
 	quit(0)
 
@@ -165,3 +167,14 @@ func _test_multiple_corridor_contours_and_legacy_compatibility() -> void:
 	assert(StationModelScript.get_corridor_contours(legacy).size() == 1, "Legacy single corridor polygons should remain readable")
 	var cleared := StationModelScript.set_corridor_contours(legacy, [])
 	assert(StationModelScript.get_corridor_contours(cleared).is_empty(), "Empty contour updates should clear both corridor representations")
+
+func _test_canonical_desktop_metric_dimensions() -> void:
+	assert(is_equal_approx(RailwayDimensionsScript.METRES_PER_WORLD_UNIT, 1.0), "Canonical reference convention should be one metre per world unit")
+	assert(is_equal_approx(RailwayDimensionsScript.TRACK_WIDTH_M, 1.435), "Track width should match desktop reference")
+	assert(is_equal_approx(RailwayDimensionsScript.HEAVY_METRO_PARALLEL_EDGE_SPACING_M, 4.27), "Parallel spacing should retain desktop edge-to-edge semantics")
+	assert(is_equal_approx(RailwayDimensionsScript.HEAVY_METRO_CENTERLINE_SPACING_M, 5.705), "Centreline spacing should include one track width")
+	assert(is_equal_approx(RailwayDimensionsScript.SIDE_PLATFORM_WIDTH_M, 8.0), "Side platform width should match desktop reference")
+	assert(is_equal_approx(RailwayDimensionsScript.ISLAND_PLATFORM_WIDTH_M, 10.0), "Island platform width should match desktop reference")
+	assert(is_equal_approx(RailwayDimensionsScript.metres_to_world_units(5.705), 5.705), "Metric conversion should follow the explicit one-to-one convention")
+	assert(is_equal_approx(RailwayDimensionsScript.world_units_to_metres(8.0), 8.0), "Reverse metric conversion should be consistent")
+	assert(is_equal_approx(RailwayDimensionsScript.train_half_width_with_platform_gap(), 1.725), "Platform edge reference should include half train width and platform gap")
