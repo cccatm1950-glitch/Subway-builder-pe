@@ -8,6 +8,7 @@ func _initialize() -> void:
 
 func _run_tests() -> void:
 	_test_straight_parallel_spacing()
+	_test_parallel_lane_matching()
 	_test_curve_endpoints_and_tangents()
 	_test_polyline_length()
 	_test_degenerate_inputs()
@@ -29,6 +30,14 @@ func _test_straight_parallel_spacing() -> void:
 	assert(is_equal_approx(pair[0][0].distance_to(pair[1][0]), 48.0), "Parallel start spacing must match requested spacing")
 	assert(is_equal_approx(pair[0][1].distance_to(pair[1][1]), 48.0), "Parallel end spacing must match requested spacing")
 	assert(pair[0][0].y > 0.0 and pair[1][0].y < 0.0, "Lane offsets should be on opposite sides")
+
+func _test_parallel_lane_matching() -> void:
+	var generated: Array[Vector2] = [Vector2(0, 24), Vector2(0, -24)]
+	var same_order: Array[Vector2] = [Vector2(0, 25), Vector2(0, -25)]
+	var reversed_order: Array[Vector2] = [Vector2(0, -25), Vector2(0, 25)]
+	assert(TrackGeometryScript.match_parallel_lane_order(generated, same_order) == [0, 1], "Parallel lanes should retain direct endpoint ordering when aligned")
+	assert(TrackGeometryScript.match_parallel_lane_order(generated, reversed_order) == [1, 0], "Parallel lanes should reverse endpoint ordering when crossed")
+	assert(TrackGeometryScript.match_parallel_lane_order([Vector2.ZERO], same_order).is_empty(), "Lane matching should reject incomplete pairs")
 
 func _test_curve_endpoints_and_tangents() -> void:
 	var start := Vector2(0, 0)
