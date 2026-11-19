@@ -195,3 +195,14 @@ static func merge_track_envelope(envelope: Array[PackedVector2Array]) -> Array[P
 					break
 		merged.append(candidate)
 	return merged
+
+
+# Build station-area corridor contours from canonical graph paths. The caller
+# supplies the world-space half-width; no platform or track-spacing dimension
+# is silently reused as corridor clearance.
+static func build_station_corridor_from_graph(graph, station_index: int, half_width: float, circle_segments: int = 12) -> Array[PackedVector2Array]:
+	var station_paths: Array[PackedVector2Array] = collect_station_paths_from_graph(graph, station_index)
+	if station_paths.is_empty() or half_width <= EPSILON:
+		return []
+	var envelope: Array[PackedVector2Array] = build_track_envelope(station_paths, half_width, circle_segments)
+	return merge_track_envelope(envelope)
