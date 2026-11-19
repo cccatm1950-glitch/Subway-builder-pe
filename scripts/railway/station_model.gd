@@ -117,6 +117,37 @@ static func get_corridor_footprint(record: Dictionary) -> PackedVector2Array:
 static func set_corridor_footprint(record: Dictionary, footprint: PackedVector2Array) -> Dictionary:
 	var updated := record.duplicate(true)
 	updated["corridor_footprint"] = footprint.duplicate() if footprint.size() >= 3 else PackedVector2Array()
+	updated.erase("corridor_contours")
+	return updated
+
+
+# Multiple disconnected corridor components are stored independently. The
+# legacy single-polygon field remains readable for existing station records.
+static func get_corridor_contours(record: Dictionary) -> Array[PackedVector2Array]:
+	var result: Array[PackedVector2Array] = []
+	if record.is_empty():
+		return result
+	var stored: Array = record.get("corridor_contours", [])
+	if not stored.is_empty():
+		for contour in stored:
+			var polygon := PackedVector2Array(contour)
+			if polygon.size() >= 3:
+				result.append(polygon.duplicate())
+		return result
+	var legacy := get_corridor_footprint(record)
+	if legacy.size() >= 3:
+		result.append(legacy)
+	return result
+
+
+static func set_corridor_contours(record: Dictionary, contours: Array[PackedVector2Array]) -> Dictionary:
+	var updated := record.duplicate(true)
+	var valid_contours: Array[PackedVector2Array] = []
+	for contour in contours:
+		if contour.size() >= 3:
+			valid_contours.append(contour.duplicate())
+	updated["corridor_contours"] = valid_contours
+	updated["corridor_footprint"] = PackedVector2Array()
 	return updated
 
 
