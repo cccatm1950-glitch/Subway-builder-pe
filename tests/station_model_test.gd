@@ -16,6 +16,7 @@ func _run_tests() -> void:
 	_test_corridor_is_separate_from_platform()
 	_test_corridor_queries_and_clearance()
 	_test_irregular_corridor_and_angled_approach()
+	_test_multiple_corridor_contours_and_legacy_compatibility()
 	print("STATION_MODEL_TESTS: PASS")
 	quit(0)
 
@@ -135,3 +136,21 @@ func _test_irregular_corridor_and_angled_approach() -> void:
 	assert(is_zero_approx(StationModelScript.minimum_path_corridor_clearance(record, approach_path)), "Track approach running within the corridor must not be treated as outside clearance")
 	var exterior_path := PackedVector2Array([Vector2(220, 150), Vector2(260, 180)])
 	assert(StationModelScript.minimum_path_corridor_clearance(record, exterior_path) > 0.0, "Track geometry beyond the corridor boundary should report positive separation")
+
+func _test_multiple_corridor_contours_and_legacy_compatibility() -> void:
+	var record = StationModelScript.create_record(15, Vector2.ZERO)
+	var first := PackedVector2Array([Vector2(-40, -20), Vector2(0, -20), Vector2(0, 20), Vector2(-40, 20)])
+	var second := PackedVector2Array([Vector2(60, -20), Vector2(100, -20), Vector2(100, 20), Vector2(60, 20)])
+	var contours: Array[PackedVector2Array] = [first, second]
+	var updated := StationModelScript.set_corridor_contours(record, contours)
+	var retrieved := StationModelScript.get_corridor_contours(updated)
+	assert(retrieved.size() == 2, "Disconnected corridor components should both be retained")
+	assert(Geometry2D.is_point_in_polygon(Vector2(-20, 0), retrieved[0]), "First corridor component should retain its geometry")
+	assert(Geometry2D.is_point_in_polygon(Vector2(80, 0), retrieved[1]), "Second corridor component should retain its geometry")
+	assert(not Geometry2D.is_point_in_polygon(Vector2(30, 0), retrieved[0]) and not Geometry2D.is_point_in_polygon(Vector2(30, 0), retrieved[1]), "Disconnected components must not be bridged")
+	retrieved[0][0] = Vector2(999, 999)
+	assert(StationModelScript.get_corridor_contours(updated)[0][0].distance_to(first[0]) < 0.001, "Returned contours must not mutate stored station data")
+	var legacy := StationModelScript.set_corridor_footprint(record, first)
+	assert(StationModelScript.get_corridor_contours(legacy).size() == 1, "Legacy single corridor polygons should remain readable")
+	var cleared := StationModelScript.set_corridor_contours(legacy, [])
+	assert(StationModelScript.get_corridor_contours(cleared).is_empty(), "Empty contour updates should clear both corridor representations")
