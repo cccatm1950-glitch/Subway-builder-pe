@@ -7,6 +7,7 @@ func _initialize() -> void:
 
 func _run_tests() -> void:
 	_test_default_platform_footprint()
+	_test_side_and_island_platform_dimensions()
 	_test_rotated_platform_footprint()
 	_test_dimensions_are_clamped()
 	_test_invalid_records_are_safe()
@@ -165,3 +166,16 @@ func _test_multiple_corridor_contours_and_legacy_compatibility() -> void:
 	assert(StationModelScript.get_corridor_contours(legacy).size() == 1, "Legacy single corridor polygons should remain readable")
 	var cleared := StationModelScript.set_corridor_contours(legacy, [])
 	assert(StationModelScript.get_corridor_contours(cleared).is_empty(), "Empty contour updates should clear both corridor representations")
+
+func _test_side_and_island_platform_dimensions() -> void:
+	assert(is_equal_approx(StationModelScript.get_platform_width_meters(StationModelScript.PLATFORM_TYPE_SIDE), 8.0), "Side platforms should retain the desktop 8 m reference width")
+	assert(is_equal_approx(StationModelScript.get_platform_width_meters(StationModelScript.PLATFORM_TYPE_ISLAND), 10.0), "Island platforms should retain the desktop 10 m reference width")
+	assert(is_zero_approx(StationModelScript.get_platform_width_world_units(StationModelScript.PLATFORM_TYPE_SIDE, 0.0)), "An uncalibrated world scale must not invent mobile dimensions")
+	var side := StationModelScript.create_record(20, Vector2.ZERO, StationModelScript.DEFAULT_PLATFORM_LENGTH, StationModelScript.DEFAULT_PLATFORM_WIDTH, 0.0, StationModelScript.PLATFORM_TYPE_SIDE, 2.0)
+	var island := StationModelScript.create_record(21, Vector2.ZERO, StationModelScript.DEFAULT_PLATFORM_LENGTH, StationModelScript.DEFAULT_PLATFORM_WIDTH, 0.0, StationModelScript.PLATFORM_TYPE_ISLAND, 2.0)
+	assert(is_equal_approx(float(side["platform_width"]), 16.0), "Side platform width should use the shared explicit world scale")
+	assert(is_equal_approx(float(island["platform_width"]), 20.0), "Island platform width should use the same explicit world scale")
+	assert(is_equal_approx(float(side["platform_width_meters"]), 8.0) and is_equal_approx(float(island["platform_width_meters"]), 10.0), "Station records should retain their desktop reference dimensions")
+	assert(String(side["platform_type"]) == StationModelScript.PLATFORM_TYPE_SIDE and String(island["platform_type"]) == StationModelScript.PLATFORM_TYPE_ISLAND, "Station records should retain their selected platform type")
+	var legacy := StationModelScript.create_record(22, Vector2.ZERO)
+	assert(is_equal_approx(float(legacy["platform_width"]), StationModelScript.DEFAULT_PLATFORM_WIDTH), "Uncalibrated legacy station widths must remain unchanged")
