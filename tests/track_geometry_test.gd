@@ -200,7 +200,7 @@ func _test_desktop_corridor_clearance_rule() -> void:
 	# Match the desktop track-side bound: outermost track center offset,
 	# half track width, half parallel-track spacing, then track clearance.
 	var track_limited := TrackGeometryScript.calculate_station_corridor_half_width(3.0, 1.435, 4.27, 1.2, 2.0)
-	assert(is_equal_approx(track_limited, 6.0525), "Track envelope should include half track width, half parallel spacing and track clearance")
+	assert(is_equal_approx(track_limited, 7.0525), "Track envelope should include half track width, half parallel spacing and track clearance")
 	# A wide platform governs when its outer edge extends beyond the track envelope.
 	var platform_limited := TrackGeometryScript.calculate_station_corridor_half_width(1.0, 1.435, 2.8, 0.5, 4.0)
 	assert(is_equal_approx(platform_limited, 4.5), "Platform edge plus track clearance should govern when wider")
