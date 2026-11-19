@@ -15,6 +15,7 @@ func _run_tests() -> void:
 	_test_platform_edge_approach_points()
 	_test_corridor_is_separate_from_platform()
 	_test_corridor_queries_and_clearance()
+	_test_irregular_corridor_and_angled_approach()
 	print("STATION_MODEL_TESTS: PASS")
 	quit(0)
 
@@ -110,3 +111,27 @@ func _test_corridor_queries_and_clearance() -> void:
 	assert(not StationModelScript.path_has_corridor_clearance(record, outside_corridor, 32.0), "Path inside requested corridor clearance should fail")
 	assert(is_inf(StationModelScript.distance_to_corridor(StationModelScript.create_record(13, Vector2.ZERO), Vector2.ZERO)), "Undefined corridor should not fall back to platform bounds")
 	assert(not StationModelScript.path_has_corridor_clearance(record, through_corridor, -1.0), "Negative corridor clearance must be rejected")
+
+
+func _test_irregular_corridor_and_angled_approach() -> void:
+	var record = StationModelScript.create_record(14, Vector2.ZERO)
+	# A widened station body with a skewed approach edge; this is deliberately
+	# not a platform-sized rectangle or a symmetric clearance box.
+	var corridor := PackedVector2Array([
+		Vector2(-180, -60),
+		Vector2(80, -60),
+		Vector2(180, 30),
+		Vector2(150, 110),
+		Vector2(-160, 110),
+		Vector2(-200, 20)
+	])
+	record = StationModelScript.set_corridor_footprint(record, corridor)
+	var stored := StationModelScript.get_corridor_footprint(record)
+	assert(stored.size() == 6, "Irregular corridor polygon must retain all authored boundary vertices")
+	assert(stored[2].distance_to(Vector2(180, 30)) < 0.001, "Angled approach boundary must retain its authored vertex")
+	assert(StationModelScript.corridor_contains_point(record, Vector2.ZERO), "Station-area interior should be inside the irregular corridor")
+	assert(not StationModelScript.corridor_contains_point(record, Vector2(220, 80)), "Point beyond the angled approach should remain outside the corridor")
+	var approach_path := PackedVector2Array([Vector2(100, 0), Vector2(170, 45)])
+	assert(is_zero_approx(StationModelScript.minimum_path_corridor_clearance(record, approach_path)), "Track approach running within the corridor must not be treated as outside clearance")
+	var exterior_path := PackedVector2Array([Vector2(220, 150), Vector2(260, 180)])
+	assert(StationModelScript.minimum_path_corridor_clearance(record, exterior_path) > 0.0, "Track geometry beyond the corridor boundary should report positive separation")
