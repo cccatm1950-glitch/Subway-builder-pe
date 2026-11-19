@@ -469,15 +469,11 @@ func _resolve_parallel_curve_anchor_nodes(station_index: int, selected_node_id: 
 		# Match curve offsets to the closest corresponding existing lane endpoints.
 		var p0: Vector2 = paths[0][0] if at_start else paths[0][paths[0].size() - 1]
 		var p1: Vector2 = paths[1][0] if at_start else paths[1][paths[1].size() - 1]
-		var direct_cost := p0.distance_to(candidates[0]["position"]) + p1.distance_to(candidates[1]["position"])
-		var crossed_cost := p0.distance_to(candidates[1]["position"]) + p1.distance_to(candidates[0]["position"])
-		if crossed_cost < direct_cost:
-			candidates.reverse()
-			anchors[0] = candidates[0]
-			anchors[1] = candidates[1]
-		else:
-			anchors[0] = candidates[0]
-			anchors[1] = candidates[1]
+		var path_positions: Array[Vector2] = [p0, p1]
+		var candidate_positions: Array[Vector2] = [Vector2(candidates[0]["position"]), Vector2(candidates[1]["position"])]
+		var lane_order: Array[int] = TrackGeometryScript.match_parallel_lane_order(path_positions, candidate_positions)
+		anchors[0] = candidates[lane_order[0]]
+		anchors[1] = candidates[lane_order[1]]
 		return anchors
 	if selected_node_id >= 0 and not selected_node.is_empty():
 		var selected_position: Vector2 = selected_node.get("position", stations[station_index])
@@ -1079,6 +1075,25 @@ func _add_parallel_track_pair_from_anchors(start_station: int, end_station: int,
 	]
 	var start_anchors := _resolve_parallel_curve_anchor_nodes(start_station, start_anchor_node, candidate_paths, true)
 	var end_anchors := _resolve_parallel_curve_anchor_nodes(end_station, end_anchor_node, candidate_paths, false)
+	# Recenter the new pair on the existing pair's midpoint when connecting
+	# to a parallel group, rather than offsetting from the single tapped lane.
+	if int(start_anchors[0]["node_id"]) != int(start_anchors[1]["node_id"]):
+		start_position = (Vector2(start_anchors[0]["position"]) + Vector2(start_anchors[1]["position"])) * 0.5
+	if int(end_anchors[0]["node_id"]) != int(end_anchors[1]["node_id"]):
+		end_position = (Vector2(end_anchors[0]["position"]) + Vector2(end_anchors[1]["position"])) * 0.5
+	direction = (end_position - start_position).normalized()
+	if direction == Vector2.ZERO:
+		hud.set_mode(build_mode, "CHOOSE TWO DIFFERENT CONNECTION NODES")
+		return
+	normal = Vector2(-direction.y, direction.x)
+	lane_starts = [start_position + normal * half_spacing, start_position - normal * half_spacing]
+	lane_ends = [end_position + normal * half_spacing, end_position - normal * half_spacing]
+	candidate_paths = [
+		PackedVector2Array([lane_starts[0], lane_ends[0]]),
+		PackedVector2Array([lane_starts[1], lane_ends[1]])
+	]
+	start_anchors = _resolve_parallel_curve_anchor_nodes(start_station, start_anchor_node, candidate_paths, true)
+	end_anchors = _resolve_parallel_curve_anchor_nodes(end_station, end_anchor_node, candidate_paths, false)
 	var group_id := next_track_edge_id
 	for lane in range(2):
 		var start_anchor: Dictionary = start_anchors[lane]
