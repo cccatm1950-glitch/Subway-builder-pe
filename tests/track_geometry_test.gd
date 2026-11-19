@@ -197,12 +197,14 @@ func _test_station_corridor_builder_uses_canonical_graph() -> void:
 	assert(TrackGeometryScript.build_station_corridor_from_graph(graph, 3, 0.0).is_empty(), "Corridor builder must reject an unspecified width")
 
 func _test_desktop_corridor_clearance_rule() -> void:
-	# The track envelope governs when it extends beyond the platform.
-	var track_limited := TrackGeometryScript.calculate_station_corridor_half_width(3.0, 3.2, 1.2, 2.0)
-	assert(is_equal_approx(track_limited, 5.8), "Track envelope should include outermost offset, half train width and train clearance")
-	# A wide platform governs when its edge extends beyond the train envelope.
-	var platform_limited := TrackGeometryScript.calculate_station_corridor_half_width(1.0, 2.65, 0.5, 4.0)
-	assert(is_equal_approx(platform_limited, 4.5), "Platform edge plus train clearance should govern when wider")
-	assert(is_zero_approx(TrackGeometryScript.calculate_station_corridor_half_width(-1.0, 3.0, 0.5, 2.0)), "Negative track offsets must be rejected")
-	assert(is_zero_approx(TrackGeometryScript.calculate_station_corridor_half_width(1.0, 0.0, 0.5, 2.0)), "Missing train width must be rejected")
-	assert(is_zero_approx(TrackGeometryScript.calculate_station_corridor_half_width(1.0, 3.0, -0.5, 2.0)), "Negative train clearance must be rejected")
+	# Match the desktop track-side bound: outermost track center offset,
+	# half track width, half parallel-track spacing, then track clearance.
+	var track_limited := TrackGeometryScript.calculate_station_corridor_half_width(3.0, 1.435, 4.27, 1.2, 2.0)
+	assert(is_equal_approx(track_limited, 6.0525), "Track envelope should include half track width, half parallel spacing and track clearance")
+	# A wide platform governs when its outer edge extends beyond the track envelope.
+	var platform_limited := TrackGeometryScript.calculate_station_corridor_half_width(1.0, 1.435, 2.8, 0.5, 4.0)
+	assert(is_equal_approx(platform_limited, 4.5), "Platform edge plus track clearance should govern when wider")
+	assert(is_zero_approx(TrackGeometryScript.calculate_station_corridor_half_width(-1.0, 1.435, 2.8, 0.5, 2.0)), "Negative track offsets must be rejected")
+	assert(is_zero_approx(TrackGeometryScript.calculate_station_corridor_half_width(1.0, 0.0, 2.8, 0.5, 2.0)), "Missing track width must be rejected")
+	assert(is_zero_approx(TrackGeometryScript.calculate_station_corridor_half_width(1.0, 1.435, -0.1, 0.5, 2.0)), "Negative parallel spacing must be rejected")
+	assert(is_zero_approx(TrackGeometryScript.calculate_station_corridor_half_width(1.0, 1.435, 2.8, -0.5, 2.0)), "Negative track clearance must be rejected")
