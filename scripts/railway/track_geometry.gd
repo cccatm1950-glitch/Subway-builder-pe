@@ -99,3 +99,64 @@ static func endpoints_match(a: PackedVector2Array, b: PackedVector2Array, tolera
 	if a.size() < 2 or b.size() < 2:
 		return false
 	return a[0].distance_to(b[0]) <= tolerance and a[a.size() - 1].distance_to(b[b.size() - 1]) <= tolerance
+
+
+# Build a local envelope around a collection of connected or crossing track
+# paths. The supplied half_width is explicit world-space clearance; this helper
+# does not infer station dimensions or decide which tracks belong to a station.
+# The result can contain multiple polygons when the source paths are disjoint.
+static func build_track_envelope(paths: Array[PackedVector2Array], half_width: float, circle_segments: int = 12) -> Array[PackedVector2Array]:
+	var result: Array[PackedVector2Array] = []
+	var radius := maxf(half_width, 0.0)
+	if radius <= EPSILON:
+		return result
+	var segments := maxi(circle_segments, 8)
+	for path in paths:
+		if path.size() < 2:
+			continue
+		for point_index in range(path.size()):
+			var disk := _make_envelope_disk(path[point_index], radius, segments)
+			result = _merge_envelope_polygon(result, disk)
+			if point_index == 0:
+				continue
+			var start := path[point_index - 1]
+			var finish := path[point_index]
+			var direction := finish - start
+			if direction.length_squared() <= EPSILON:
+				continue
+			var normal := Vector2(-direction.y, direction.x).normalized() * radius
+			var strip := PackedVector2Array([start + normal, finish + normal, finish - normal, start - normal])
+			result = _merge_envelope_polygon(result, strip)
+	return result
+
+static func _make_envelope_disk(center: Vector2, radius: float, segments: int) -> PackedVector2Array:
+	var polygon := PackedVector2Array()
+	for index in range(segments):
+		var angle := TAU * float(index) / float(segments)
+		polygon.append(center + Vector2(cos(angle), sin(angle)) * radius)
+	return polygon
+
+static func _merge_envelope_polygon(current: Array[PackedVector2Array], addition: PackedVector2Array) -> Array[PackedVector2Array]:
+	if current.is_empty():
+		var initial: Array[PackedVector2Array] = []
+		initial.append(addition)
+		return initial
+	var merged: Array[PackedVector2Array] = []
+	var pending: Array[PackedVector2Array] = [addition]
+	for existing in current:
+		var next_pending: Array[PackedVector2Array] = []
+		for candidate in pending:
+			var union := Geometry2D.merge_polygons(existing, candidate)
+			if union.is_empty():
+				next_pending.append(candidate)
+			else:
+				# Preserve every returned component; subsequent pieces will be
+				# merged against each component in turn.
+				for component in union:
+					merged.append(component)
+		if next_pending.size() == pending.size():
+			merged.append(existing)
+		pending = next_pending
+	for remaining in pending:
+		merged.append(remaining)
+	return merged
