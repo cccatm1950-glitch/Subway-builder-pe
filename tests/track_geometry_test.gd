@@ -1,6 +1,7 @@
 extends SceneTree
 
 const TrackGeometryScript = preload("res://scripts/railway/track_geometry.gd")
+const TrackGraphScript = preload("res://scripts/railway/track_graph.gd")
 
 func _initialize() -> void:
 	call_deferred("_run_tests")
@@ -106,3 +107,26 @@ func _envelope_contains(polygons: Array[PackedVector2Array], point: Vector2) -> 
 		if Geometry2D.is_point_in_polygon(point, polygon):
 			return true
 	return false
+
+
+func _test_station_path_collection_reads_canonical_graph() -> void:
+	var graph = TrackGraphScript.new()
+	var station_center: int = graph.add_node(Vector2.ZERO, 3)
+	var station_lane: int = graph.add_node(Vector2(0, 24), 3, 11, 0)
+	var other_station: int = graph.add_node(Vector2(120, 0), 8)
+	var unrelated: int = graph.add_node(Vector2(240, 0), 9)
+	var single := PackedVector2Array([Vector2.ZERO, Vector2(60, 0), Vector2(120, 0)])
+	var transfer := PackedVector2Array([Vector2.ZERO, Vector2(0, 24)])
+	var curve := PackedVector2Array([Vector2(0, 24), Vector2(50, 55), Vector2(120, 0)])
+	var unrelated_path := PackedVector2Array([Vector2(120, 0), Vector2(180, 0), Vector2(240, 0)])
+	assert(graph.add_edge(station_center, other_station, "single", single) > 0, "Canonical single edge should register")
+	assert(graph.add_edge(station_center, station_lane, "station_transfer", transfer) > 0, "Canonical station transfer should register")
+	assert(graph.add_edge(station_lane, other_station, "curve", curve) > 0, "Canonical curve should register")
+	assert(graph.add_edge(other_station, unrelated, "single", unrelated_path) > 0, "Unrelated edge should register")
+	var paths: Array[PackedVector2Array] = TrackGeometryScript.collect_station_paths_from_graph(graph, 3)
+	assert(paths.size() == 3, "Graph collector should include all edges touching station-owned nodes only")
+	assert(paths[0] == single, "Graph collector should preserve canonical single geometry")
+	assert(paths[1] == transfer, "Graph collector should preserve logical station-transfer geometry")
+	assert(paths[2] == curve, "Graph collector should preserve canonical curved geometry")
+	assert(TrackGeometryScript.collect_station_paths_from_graph(graph, 99).is_empty(), "Unknown station should have no graph paths")
+	assert(TrackGeometryScript.collect_station_paths_from_graph(graph, -1).is_empty(), "Invalid station index should have no graph paths")
