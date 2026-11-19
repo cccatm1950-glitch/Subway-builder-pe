@@ -15,6 +15,8 @@ func _run_tests() -> void:
 	_test_track_envelope_covers_multi_path_geometry()
 	_test_track_envelope_rejects_missing_width_and_paths()
 	_test_track_envelope_merges_overlapping_shapes()
+	_test_generated_branch_envelope_merges_as_one_corridor()
+	_test_disconnected_envelopes_remain_separate()
 	print("TRACK_GEOMETRY_TESTS: PASS")
 	quit(0)
 
@@ -142,3 +144,28 @@ func _test_track_envelope_merges_overlapping_shapes() -> void:
 	assert(_envelope_contains(merged, Vector2(25, 10)), "Merged contour should preserve second shape coverage")
 	assert(_envelope_contains(merged, Vector2(15, 10)), "Merged contour should fill the overlap without a seam")
 	assert(not _envelope_contains(merged, Vector2(35, 10)), "Merged contour should not expand beyond the source shapes")
+
+
+func _test_generated_branch_envelope_merges_as_one_corridor() -> void:
+	var paths: Array[PackedVector2Array] = [
+		PackedVector2Array([Vector2(0, 0), Vector2(40, 0), Vector2(80, 0)]),
+		PackedVector2Array([Vector2(40, 0), Vector2(65, 25), Vector2(90, 50)])
+	]
+	var pieces: Array[PackedVector2Array] = TrackGeometryScript.build_track_envelope(paths, 12.0)
+	var merged: Array[PackedVector2Array] = TrackGeometryScript.merge_track_envelope(pieces)
+	assert(merged.size() == 1, "Connected straight and angled branch envelopes should form one corridor contour")
+	assert(_envelope_contains(merged, Vector2(20, 0)), "Merged branch corridor should retain the straight approach")
+	assert(_envelope_contains(merged, Vector2(65, 25)), "Merged branch corridor should retain the branch")
+	assert(_envelope_contains(merged, Vector2(90, 50)), "Merged branch corridor should retain the branch endpoint")
+	assert(not _envelope_contains(merged, Vector2(110, 70)), "Merged branch corridor should remain within configured clearance")
+
+func _test_disconnected_envelopes_remain_separate() -> void:
+	var first_path := PackedVector2Array([Vector2(0, 0), Vector2(40, 0)])
+	var second_path := PackedVector2Array([Vector2(120, 0), Vector2(160, 0)])
+	var paths: Array[PackedVector2Array] = [first_path, second_path]
+	var pieces: Array[PackedVector2Array] = TrackGeometryScript.build_track_envelope(paths, 10.0)
+	var merged: Array[PackedVector2Array] = TrackGeometryScript.merge_track_envelope(pieces)
+	assert(merged.size() == 2, "Disconnected track envelopes should remain separate contours")
+	assert(_envelope_contains(merged, Vector2(20, 0)), "First disconnected envelope should remain covered")
+	assert(_envelope_contains(merged, Vector2(140, 0)), "Second disconnected envelope should remain covered")
+	assert(not _envelope_contains(merged, Vector2(80, 0)), "The gap between disconnected envelopes must not be filled")
