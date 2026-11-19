@@ -11,6 +11,8 @@ func _run_tests() -> void:
 	_test_polyline_length()
 	_test_degenerate_inputs()
 	_test_signed_offsets_on_bends()
+	_test_track_envelope_covers_multi_path_geometry()
+	_test_track_envelope_rejects_missing_width_and_paths()
 	print("TRACK_GEOMETRY_TESTS: PASS")
 	quit(0)
 
@@ -56,3 +58,28 @@ func _test_signed_offsets_on_bends() -> void:
 		assert(negative[index].distance_to(centerline[index]) > 0.0, "Negative offset should move every valid point")
 		assert(is_equal_approx(positive[index].distance_to(centerline[index]), negative[index].distance_to(centerline[index])), "Signed offsets should have symmetric miter lengths")
 	assert(positive[1].distance_to(negative[1]) > 40.0, "Opposite bend offsets should remain separated")
+
+
+func _test_track_envelope_covers_multi_path_geometry() -> void:
+	var paths: Array[PackedVector2Array] = [
+		PackedVector2Array([Vector2(0, 0), Vector2(100, 0)]),
+		PackedVector2Array([Vector2(50, 0), Vector2(100, 60), Vector2(150, 80)])
+	]
+	var envelope: Array[PackedVector2Array] = TrackGeometryScript.build_track_envelope(paths, 12.0)
+	assert(not envelope.is_empty(), "Track envelope should be created from valid paths")
+	assert(_envelope_contains(envelope, Vector2(50, 10)), "Envelope should cover clearance beside the straight track")
+	assert(_envelope_contains(envelope, Vector2(100, 60)), "Envelope should cover the angled branch centerline")
+	assert(_envelope_contains(envelope, Vector2(150, 80)), "Envelope should cover the branch endpoint")
+	assert(not _envelope_contains(envelope, Vector2(150, 110)), "Envelope should respect the configured local width")
+
+func _test_track_envelope_rejects_missing_width_and_paths() -> void:
+	var paths: Array[PackedVector2Array] = [PackedVector2Array([Vector2.ZERO, Vector2(20, 0)])]
+	assert(TrackGeometryScript.build_track_envelope([], 12.0).is_empty(), "No paths should produce no envelope")
+	assert(TrackGeometryScript.build_track_envelope(paths, 0.0).is_empty(), "Zero width should produce no envelope")
+	assert(TrackGeometryScript.build_track_envelope([PackedVector2Array([Vector2.ZERO])], 12.0).is_empty(), "Single-point paths should be ignored")
+
+func _envelope_contains(polygons: Array[PackedVector2Array], point: Vector2) -> bool:
+	for polygon in polygons:
+		if Geometry2D.is_point_in_polygon(point, polygon):
+			return true
+	return false
