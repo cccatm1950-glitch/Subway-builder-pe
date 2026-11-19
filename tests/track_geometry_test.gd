@@ -18,6 +18,7 @@ func _run_tests() -> void:
 	_test_generated_branch_envelope_merges_as_one_corridor()
 	_test_disconnected_envelopes_remain_separate()
 	_test_station_corridor_builder_uses_canonical_graph()
+	_test_desktop_corridor_clearance_rule()
 	print("TRACK_GEOMETRY_TESTS: PASS")
 	quit(0)
 
@@ -194,3 +195,14 @@ func _test_station_corridor_builder_uses_canonical_graph() -> void:
 	assert(_envelope_contains(corridor, Vector2(50, 52)), "Station corridor should include the curved branch")
 	assert(not _envelope_contains(corridor, Vector2(270, 20)), "Unrelated graph tracks must not enter the station corridor")
 	assert(TrackGeometryScript.build_station_corridor_from_graph(graph, 3, 0.0).is_empty(), "Corridor builder must reject an unspecified width")
+
+func _test_desktop_corridor_clearance_rule() -> void:
+	# The track envelope governs when it extends beyond the platform.
+	var track_limited := TrackGeometryScript.calculate_station_corridor_half_width(3.0, 3.2, 1.2, 2.0)
+	assert(is_equal_approx(track_limited, 5.8), "Track envelope should include outermost offset, half train width and train clearance")
+	# A wide platform governs when its edge extends beyond the train envelope.
+	var platform_limited := TrackGeometryScript.calculate_station_corridor_half_width(1.0, 2.65, 0.5, 4.0)
+	assert(is_equal_approx(platform_limited, 4.5), "Platform edge plus train clearance should govern when wider")
+	assert(is_zero_approx(TrackGeometryScript.calculate_station_corridor_half_width(-1.0, 3.0, 0.5, 2.0)), "Negative track offsets must be rejected")
+	assert(is_zero_approx(TrackGeometryScript.calculate_station_corridor_half_width(1.0, 0.0, 0.5, 2.0)), "Missing train width must be rejected")
+	assert(is_zero_approx(TrackGeometryScript.calculate_station_corridor_half_width(1.0, 3.0, -0.5, 2.0)), "Negative train clearance must be rejected")
