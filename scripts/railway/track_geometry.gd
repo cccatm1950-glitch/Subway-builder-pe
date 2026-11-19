@@ -202,11 +202,16 @@ static func merge_track_envelope(envelope: Array[PackedVector2Array]) -> Array[P
 # reference centerline to the outermost track centerline; all values must use
 # the same world-unit scale. The larger of the train envelope and platform
 # half-width is expanded by the train type's track clearance.
-static func calculate_station_corridor_half_width(outermost_track_center_offset: float, train_width: float, track_clearance: float, platform_half_width: float) -> float:
-	if outermost_track_center_offset < 0.0 or train_width <= 0.0 or track_clearance < 0.0 or platform_half_width < 0.0:
+static func calculate_station_corridor_half_width(outermost_track_center_offset: float, track_width: float, parallel_track_spacing: float, track_clearance: float, platform_half_width: float) -> float:
+	if outermost_track_center_offset < 0.0 or track_width <= 0.0 or parallel_track_spacing < 0.0 or track_clearance < 0.0 or platform_half_width < 0.0:
 		return 0.0
-	var outermost_train_extent := outermost_track_center_offset + train_width * 0.5
-	return maxf(outermost_train_extent, platform_half_width) + track_clearance
+	# Match desktop getTrackBaseWidth(): the track-side bound includes the
+	# outermost track half-width and half the train type's parallel spacing.
+	# platform_half_width is the outermost platform edge, including its
+	# platform-to-train gap where applicable.
+	var track_extent := outermost_track_center_offset + track_width * 0.5 + parallel_track_spacing * 0.5 + track_clearance
+	var platform_extent := platform_half_width + track_clearance
+	return maxf(track_extent, platform_extent)
 
 
 # Build station-area corridor contours from canonical graph paths. The caller
