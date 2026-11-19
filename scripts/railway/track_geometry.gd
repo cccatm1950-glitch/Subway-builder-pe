@@ -133,3 +133,21 @@ static func _make_envelope_disk(center: Vector2, radius: float, segments: int) -
 		var angle := TAU * float(index) / float(segments)
 		polygon.append(center + Vector2(cos(angle), sin(angle)) * radius)
 	return polygon
+
+
+# Select the actual sampled paths attached to a station. Callers provide
+# geometry resolved from the canonical edge records; lane type does not affect
+# membership, so single, parallel, curve and transition paths are all retained.
+static func collect_station_paths(edges: Array[Dictionary], station_index: int) -> Array[PackedVector2Array]:
+	var result: Array[PackedVector2Array] = []
+	if station_index < 0:
+		return result
+	for edge in edges:
+		var starts_here := int(edge.get("start_station", -1)) == station_index
+		var ends_here := int(edge.get("end_station", -1)) == station_index
+		if not starts_here and not ends_here:
+			continue
+		var points: PackedVector2Array = edge.get("geometry", PackedVector2Array())
+		if points.size() >= 2:
+			result.append(points.duplicate())
+	return result
