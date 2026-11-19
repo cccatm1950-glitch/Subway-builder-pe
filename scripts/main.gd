@@ -1346,6 +1346,7 @@ func _select_parallel_curve_mode() -> void:
 	hud.set_mode(build_mode, "TAP START  ·  DRAG SHARED CURVE HANDLE  ·  TAP END" if build_mode == "parallel_curve" else "DRAG TO MOVE  ·  PINCH TO ZOOM")
 
 func _draw() -> void:
+	_draw_station_corridors()
 	_draw_station_platforms()
 	_draw_canonical_track_edges()
 	for path in junction_transition_paths:
@@ -1379,6 +1380,18 @@ func _draw() -> void:
 		draw_arc(station, 16.0, 0.0, TAU, 32, Color(0.25, 0.88, 0.82), 2.0, true)
 		if build_mode == "track" and index == pending_track_start:
 			draw_arc(station, 23.0, 0.0, TAU, 32, Color(1.0, 1.0, 1.0), 2.0, true)
+
+func _draw_station_corridors() -> void:
+	# Corridors are optional authored polygons, rendered as their own map layer.
+	# Undefined corridors remain invisible; never infer them from platform size.
+	for record in station_records:
+		var corridor := StationModelScript.get_corridor_footprint(record)
+		if corridor.size() < 3:
+			continue
+		draw_colored_polygon(corridor, Color(0.78, 0.84, 0.88, 0.16))
+		var outline := corridor.duplicate()
+		outline.append(corridor[0])
+		draw_polyline(outline, Color(0.72, 0.82, 0.88, 0.48), 2.0 / camera.zoom.x, true)
 
 func _draw_station_platforms() -> void:
 	for index in range(station_records.size()):
