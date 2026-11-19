@@ -161,7 +161,6 @@ static func _merge_envelope_polygon(current: Array[PackedVector2Array], addition
 		merged.append(remaining)
 	return merged
 
-
 # Build a local envelope as overlapping strip and cap polygons around a
 # collection of track paths. half_width is an explicit world-space clearance;
 # this helper does not infer station dimensions or decide track membership.
