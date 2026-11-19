@@ -1069,44 +1069,49 @@ func _add_parallel_track_pair_from_anchors(start_station: int, end_station: int,
 		return
 	var normal := Vector2(-direction.y, direction.x)
 	var half_spacing := PARALLEL_CENTERLINE_SPACING * 0.5
-	var group_id := next_track_edge_id
 	var lane_starts: Array[Vector2] = [start_position + normal * half_spacing, start_position - normal * half_spacing]
 	var lane_ends: Array[Vector2] = [end_position + normal * half_spacing, end_position - normal * half_spacing]
-	var start_node := start_anchor_node
-	if start_node < 0:
-		start_node = _get_or_create_lane_node(start_position, start_station, 0, -1)
-	var end_node := end_anchor_node
-	if end_node < 0:
-		end_node = _get_or_create_lane_node(end_position, end_station, 0, -1)
+	# Resolve both ends as lane pairs. Tapping one lane of an existing parallel
+	# section must still connect lane-to-lane, including reversed lane ordering.
+	var candidate_paths: Array[PackedVector2Array] = [
+		PackedVector2Array([lane_starts[0], lane_ends[0]]),
+		PackedVector2Array([lane_starts[1], lane_ends[1]])
+	]
+	var start_anchors := _resolve_parallel_curve_anchor_nodes(start_station, start_anchor_node, candidate_paths, true)
+	var end_anchors := _resolve_parallel_curve_anchor_nodes(end_station, end_anchor_node, candidate_paths, false)
+	var group_id := next_track_edge_id
 	for lane in range(2):
+		var start_anchor: Dictionary = start_anchors[lane]
+		var end_anchor: Dictionary = end_anchors[lane]
+		var start_anchor_position: Vector2 = start_anchor["position"]
+		var end_anchor_position: Vector2 = end_anchor["position"]
 		var lane_start := _get_or_create_lane_node(lane_starts[lane], start_station, lane, group_id)
 		var lane_end := _get_or_create_lane_node(lane_ends[lane], end_station, lane, group_id)
-		# Parallel lanes are stored as graph edges, but the renderer also
-		# consumes the legacy segment list. Register both endpoints so the
-		# two visible centerlines are drawn as well as their orange nodes.
 		track_segments.append(lane_starts[lane])
 		track_segments.append(lane_ends[lane])
 		track_edges.append({"id": next_track_edge_id, "start_node": lane_start, "end_node": lane_end, "start_station": start_station, "end_station": end_station, "start_point": lane_starts[lane], "end_point": lane_ends[lane], "kind": "parallel", "parallel_group": group_id, "lane_index": lane, "lane_count": 2, "centerline_spacing": PARALLEL_CENTERLINE_SPACING})
 		_register_lane_edge(next_track_edge_id, lane_start, lane_end)
 		next_track_edge_id += 1
-		var start_outgoing := _find_connected_track_tangent(start_position, direction, false)
+		var start_outgoing := _find_connected_track_tangent(start_anchor_position, direction, false)
 		if start_outgoing == Vector2.ZERO:
 			start_outgoing = direction
-		var end_outgoing := _find_connected_track_tangent(end_position, -direction, false)
+		var end_outgoing := _find_connected_track_tangent(end_anchor_position, -direction, false)
 		if end_outgoing == Vector2.ZERO:
 			end_outgoing = -direction
-		var start_connector := _make_junction_transition(start_position, lane_starts[lane], start_outgoing, direction)
-		var end_connector := _make_junction_transition(lane_ends[lane], end_position, direction, -end_outgoing)
+		var start_connector := _make_junction_transition(start_anchor_position, lane_starts[lane], start_outgoing, direction)
+		var end_connector := _make_junction_transition(lane_ends[lane], end_anchor_position, direction, -end_outgoing)
+		var start_node := int(start_anchor["node_id"])
+		var end_node := int(end_anchor["node_id"])
 		if start_connector.size() > 1 and start_node != lane_start:
 			var start_path_index := junction_transition_paths.size()
 			junction_transition_paths.append(start_connector)
-			track_edges.append({"id": next_track_edge_id, "start_node": start_node, "end_node": lane_start, "start_station": start_station, "end_station": start_station, "start_point": start_position, "end_point": lane_starts[lane], "kind": "station_transfer", "transition_path_index": start_path_index, "parallel_group": -1, "lane_index": lane, "lane_count": 1, "centerline_spacing": 0.0})
+			track_edges.append({"id": next_track_edge_id, "start_node": start_node, "end_node": lane_start, "start_station": start_station, "end_station": start_station, "start_point": start_anchor_position, "end_point": lane_starts[lane], "kind": "station_transfer", "transition_path_index": start_path_index, "parallel_group": -1, "lane_index": lane, "lane_count": 1, "centerline_spacing": 0.0})
 			_register_lane_edge(next_track_edge_id, start_node, lane_start)
 			next_track_edge_id += 1
 		if end_connector.size() > 1 and end_node != lane_end:
 			var end_path_index := junction_transition_paths.size()
 			junction_transition_paths.append(end_connector)
-			track_edges.append({"id": next_track_edge_id, "start_node": lane_end, "end_node": end_node, "start_station": end_station, "end_station": end_station, "start_point": lane_ends[lane], "end_point": end_position, "kind": "station_transfer", "transition_path_index": end_path_index, "parallel_group": -1, "lane_index": lane, "lane_count": 1, "centerline_spacing": 0.0})
+			track_edges.append({"id": next_track_edge_id, "start_node": lane_end, "end_node": end_node, "start_station": end_station, "end_station": end_station, "start_point": lane_ends[lane], "end_point": end_anchor_position, "kind": "station_transfer", "transition_path_index": end_path_index, "parallel_group": -1, "lane_index": lane, "lane_count": 1, "centerline_spacing": 0.0})
 			_register_lane_edge(next_track_edge_id, lane_end, end_node)
 			next_track_edge_id += 1
 	queue_redraw()
