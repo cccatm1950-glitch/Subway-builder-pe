@@ -180,27 +180,18 @@ static func merge_track_envelope(envelope: Array[PackedVector2Array]) -> Array[P
 	for source_polygon in envelope:
 		if source_polygon.size() < 3:
 			continue
-		var pending: Array[PackedVector2Array] = [source_polygon.duplicate()]
-		var index := 0
-		while index < merged.size() and not pending.is_empty():
-			var next_pending: Array[PackedVector2Array] = []
-			for candidate in pending:
+		var candidate := source_polygon.duplicate()
+		var absorbed_shape := true
+		while absorbed_shape:
+			absorbed_shape = false
+			for index in range(merged.size()):
 				var union_result := Geometry2D.merge_polygons(merged[index], candidate)
-				if union_result.is_empty():
-					next_pending.append(candidate)
-				else:
-					for contour in union_result:
-						if contour.size() >= 3:
-							next_pending.append(contour)
+				# A single contour means these shapes formed one connected outer
+				# boundary. Keep disconnected or hole-producing results separate.
+				if union_result.size() == 1 and union_result[0].size() >= 3:
+					candidate = union_result[0]
 					merged.remove_at(index)
-					index = -1
+					absorbed_shape = true
 					break
-			if index == -1:
-				pending = next_pending
-				index = 0
-			else:
-				pending = next_pending
-				index += 1
-		for contour in pending:
-			merged.append(contour)
+		merged.append(candidate)
 	return merged
