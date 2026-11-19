@@ -14,6 +14,7 @@ func _run_tests() -> void:
 	_test_signed_offsets_on_bends()
 	_test_track_envelope_covers_multi_path_geometry()
 	_test_track_envelope_rejects_missing_width_and_paths()
+	_test_track_envelope_merges_overlapping_shapes()
 	print("TRACK_GEOMETRY_TESTS: PASS")
 	quit(0)
 
@@ -130,3 +131,14 @@ func _test_station_path_collection_reads_canonical_graph() -> void:
 	assert(paths[2] == curve, "Graph collector should preserve canonical curved geometry")
 	assert(TrackGeometryScript.collect_station_paths_from_graph(graph, 99).is_empty(), "Unknown station should have no graph paths")
 	assert(TrackGeometryScript.collect_station_paths_from_graph(graph, -1).is_empty(), "Invalid station index should have no graph paths")
+
+
+func _test_track_envelope_merges_overlapping_shapes() -> void:
+	var first := PackedVector2Array([Vector2(0, 0), Vector2(20, 0), Vector2(20, 20), Vector2(0, 20)])
+	var second := PackedVector2Array([Vector2(10, 0), Vector2(30, 0), Vector2(30, 20), Vector2(10, 20)])
+	var merged: Array[PackedVector2Array] = TrackGeometryScript.merge_track_envelope([first, second])
+	assert(merged.size() == 1, "Overlapping envelope shapes should become one outer contour")
+	assert(_envelope_contains(merged, Vector2(5, 10)), "Merged contour should preserve first shape coverage")
+	assert(_envelope_contains(merged, Vector2(25, 10)), "Merged contour should preserve second shape coverage")
+	assert(_envelope_contains(merged, Vector2(15, 10)), "Merged contour should fill the overlap without a seam")
+	assert(not _envelope_contains(merged, Vector2(35, 10)), "Merged contour should not expand beyond the source shapes")
