@@ -160,3 +160,37 @@ static func _merge_envelope_polygon(current: Array[PackedVector2Array], addition
 	for remaining in pending:
 		merged.append(remaining)
 	return merged
+
+
+# Build a local envelope as overlapping strip and cap polygons around a
+# collection of track paths. half_width is an explicit world-space clearance;
+# this helper does not infer station dimensions or decide track membership.
+# Overlapping polygons are intentionally kept separate to avoid lossy hulls.
+static func build_track_envelope(paths: Array[PackedVector2Array], half_width: float, circle_segments: int = 12) -> Array[PackedVector2Array]:
+	var result: Array[PackedVector2Array] = []
+	var radius := maxf(half_width, 0.0)
+	if radius <= EPSILON:
+		return result
+	var segments := maxi(circle_segments, 8)
+	for path in paths:
+		if path.size() < 2:
+			continue
+		for point_index in range(path.size()):
+			result.append(_make_envelope_disk(path[point_index], radius, segments))
+			if point_index == 0:
+				continue
+			var start := path[point_index - 1]
+			var finish := path[point_index]
+			var direction := finish - start
+			if direction.length_squared() <= EPSILON:
+				continue
+			var normal := Vector2(-direction.y, direction.x).normalized() * radius
+			result.append(PackedVector2Array([start + normal, finish + normal, finish - normal, start - normal]))
+	return result
+
+static func _make_envelope_disk(center: Vector2, radius: float, segments: int) -> PackedVector2Array:
+	var polygon := PackedVector2Array()
+	for index in range(segments):
+		var angle := TAU * float(index) / float(segments)
+		polygon.append(center + Vector2(cos(angle), sin(angle)) * radius)
+	return polygon
