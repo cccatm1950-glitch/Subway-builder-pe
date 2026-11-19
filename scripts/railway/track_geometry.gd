@@ -151,3 +151,23 @@ static func collect_station_paths(edges: Array[Dictionary], station_index: int) 
 		if points.size() >= 2:
 			result.append(points.duplicate())
 	return result
+
+
+# Read station ownership from canonical graph endpoints and preserve each
+# incident edge's sampled geometry, including logical transfer paths.
+static func collect_station_paths_from_graph(graph, station_index: int) -> Array[PackedVector2Array]:
+	var result: Array[PackedVector2Array] = []
+	if station_index < 0 or graph == null:
+		return result
+	var edge_records: Array[Dictionary] = []
+	for graph_edge_id in graph.get_edge_ids():
+		var graph_edge: Dictionary = graph.get_edge(int(graph_edge_id))
+		var start_node: Dictionary = graph.get_node(int(graph_edge.get("start_node_id", -1)))
+		var end_node: Dictionary = graph.get_node(int(graph_edge.get("end_node_id", -1)))
+		edge_records.append({
+			"start_station": int(start_node.get("station_id", -1)),
+			"end_station": int(end_node.get("station_id", -1)),
+			"kind": String(graph_edge.get("kind", "single")),
+			"geometry": PackedVector2Array(graph_edge.get("points", PackedVector2Array()))
+		})
+	return collect_station_paths(edge_records, station_index)
