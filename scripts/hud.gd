@@ -36,7 +36,7 @@ func _ready() -> void:
 	title.add_theme_font_size_override("font_size", 24)
 	add_child(title)
 
-	platform_type_button = _make_action_button("PLATFORM: SIDE")
+	platform_type_button = _make_action_button("PLATFORM: SIDE  8m")
 	platform_type_button.position = Vector2(24, 150)
 	platform_type_button.size = Vector2(184, 44)
 	platform_type_button.add_theme_font_size_override("font_size", 12)
