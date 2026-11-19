@@ -23,6 +23,7 @@ var touch_moved: Dictionary = {}
 var ignored_touches: Dictionary = {}
 var previous_pinch_distance := 0.0
 var build_mode := ""
+var selected_platform_type := StationModelScript.PLATFORM_TYPE_SIDE
 var stations: Array[Vector2] = []
 var station_records: Array[Dictionary] = []
 var track_segments: Array[Vector2] = []
@@ -63,6 +64,7 @@ func _ready() -> void:
 	hud.zoom_in_requested.connect(_zoom_in)
 	hud.zoom_out_requested.connect(_zoom_out)
 	hud.station_mode_requested.connect(_select_station_mode)
+	hud.platform_type_selected.connect(_select_platform_type)
 	hud.track_mode_requested.connect(_select_track_mode)
 	hud.parallel_mode_requested.connect(_select_parallel_mode)
 	hud.parallel_curve_mode_requested.connect(_select_parallel_curve_mode)
@@ -204,7 +206,7 @@ func _handle_map_tap(_screen_position: Vector2) -> void:
 		if not stations.has(station_position):
 			var station_id := stations.size()
 			stations.append(station_position)
-			station_records.append(StationModelScript.create_record(station_id, station_position))
+			station_records.append(StationModelScript.create_record(station_id, station_position, StationModelScript.DEFAULT_PLATFORM_LENGTH, StationModelScript.DEFAULT_PLATFORM_WIDTH, 0.0, selected_platform_type, 0.0))
 			queue_redraw()
 		_update_coordinate_readout()
 	elif build_mode == "track" or build_mode == "parallel":
@@ -1313,6 +1315,13 @@ func _find_station_near_screen(screen_position: Vector2) -> int:
 			nearest_distance = distance
 			nearest_index = index
 	return nearest_index
+
+
+func _select_platform_type(platform_type: String) -> void:
+	if platform_type != StationModelScript.PLATFORM_TYPE_SIDE and platform_type != StationModelScript.PLATFORM_TYPE_ISLAND:
+		return
+	selected_platform_type = platform_type
+	hud.set_input_status("NEW STATIONS: %s PLATFORM" % selected_platform_type.to_upper())
 
 func _select_station_mode() -> void:
 	pending_track_start_node = -1
