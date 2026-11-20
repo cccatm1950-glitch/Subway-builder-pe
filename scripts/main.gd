@@ -208,42 +208,27 @@ func _handle_map_tap(_screen_position: Vector2) -> void:
 			queue_redraw()
 		_update_coordinate_readout()
 	elif build_mode == "track" or build_mode == "parallel":
-		var lane_node_id := _find_lane_node_near_screen(crosshair_screen) if build_mode == "track" else -1
-		var station_index := -1
+		# Free placement: each tap creates or reuses a track node at the
+		# snapped crosshair position. Stations are never required anchors.
 		var target_position := get_snapped_world_position(crosshair_screen)
-		var has_anchor := false
-		if lane_node_id >= 0:
-			var lane_node := _get_lane_node(lane_node_id)
-			station_index = int(lane_node.get("station_index", -1))
-			target_position = Vector2(lane_node.get("position", target_position))
-			has_anchor = true
-		else:
-			station_index = _find_station_near_screen(crosshair_screen)
-			if station_index >= 0:
-				target_position = stations[station_index]
-				has_anchor = true
-		if not has_anchor:
-			hud.set_mode(build_mode, "ALIGN THE CROSSHAIR WITH A STATION OR TRACK NODE")
-			return
-		if pending_track_start == -1 and pending_track_start_node == -1:
-			pending_track_start = station_index
+		var lane_node_id := _get_or_create_lane_node(target_position, -1, 0, -1)
+		if pending_track_start_node < 0:
 			pending_track_start_node = lane_node_id
+			pending_track_start = -1
 			pending_track_start_position = target_position
-			hud.set_mode(build_mode, "START SELECTED  ·  ALIGN CROSSHAIR WITH ANOTHER NODE")
-		elif station_index == pending_track_start and lane_node_id == pending_track_start_node:
-			hud.set_mode(build_mode, "SAME NODE  ·  CHOOSE A DIFFERENT CONNECTION")
+			hud.set_mode(build_mode, "TRACK NODE SELECTED  ·  PLACE ANOTHER NODE")
+		elif lane_node_id == pending_track_start_node:
+			hud.set_mode(build_mode, "SAME NODE  ·  PLACE A DIFFERENT NODE")
 		else:
-			var start_station := pending_track_start
-			var start_position := pending_track_start_position
 			if build_mode == "parallel":
-				_add_parallel_track_pair_from_anchors(start_station, station_index, pending_track_start_position, target_position, pending_track_start_node, lane_node_id)
+				_add_free_parallel_track_pair(pending_track_start_position, target_position)
 			else:
-				_add_track_edge_from_anchors(start_station, station_index, start_position, target_position, pending_track_start_node, lane_node_id)
+				_add_track_edge_from_anchors(-1, -1, pending_track_start_position, target_position, pending_track_start_node, lane_node_id)
 			pending_track_start = -1
 			pending_track_start_node = -1
 			pending_track_start_position = Vector2.ZERO
 			queue_redraw()
-			hud.set_mode(build_mode, "TRACK CONNECTED  ·  SELECT ANOTHER START")
+			hud.set_mode(build_mode, "TRACK CONNECTED  ·  PLACE ANOTHER START NODE")
 
 func _handle_curve_tap(screen_position: Vector2) -> void:
 	var lane_node_id := _find_lane_node_near_screen(screen_position)
@@ -1061,6 +1046,26 @@ func _build_parallel_merge_transition(start_station: int, end_station: int, star
 	if toward_end:
 		return {"draw_start": merge_point, "draw_end": end_point, "paths": paths}
 	return {"draw_start": start_point, "draw_end": merge_point, "paths": paths}
+
+func _add_free_parallel_track_pair(start_position: Vector2, end_position: Vector2) -> void:
+	var direction := (end_position - start_position).normalized()
+	if direction == Vector2.ZERO:
+		hud.set_mode(build_mode, "PLACE TWO DIFFERENT TRACK NODES")
+		return
+	var normal := Vector2(-direction.y, direction.x)
+	var half_spacing := PARALLEL_CENTERLINE_SPACING * 0.5
+	var group_id := next_track_edge_id
+	for lane in range(2):
+		var sign := 1.0 if lane == 0 else -1.0
+		var lane_start := start_position + normal * half_spacing * sign
+		var lane_end := end_position + normal * half_spacing * sign
+		var start_node := _get_or_create_lane_node(lane_start, -1, lane, group_id)
+		var end_node := _get_or_create_lane_node(lane_end, -1, lane, group_id)
+		track_segments.append(lane_start)
+		track_segments.append(lane_end)
+		track_edges.append({"id": next_track_edge_id, "start_node": start_node, "end_node": end_node, "start_station": -1, "end_station": -1, "start_point": lane_start, "end_point": lane_end, "kind": "parallel", "parallel_group": group_id, "lane_index": lane, "lane_count": 2, "centerline_spacing": PARALLEL_CENTERLINE_SPACING})
+		_register_lane_edge(next_track_edge_id, start_node, end_node)
+		next_track_edge_id += 1
 
 func _add_parallel_track_pair_from_anchors(start_station: int, end_station: int, start_position: Vector2, end_position: Vector2, start_anchor_node: int, end_anchor_node: int) -> void:
 	var direction := (end_position - start_position).normalized()
