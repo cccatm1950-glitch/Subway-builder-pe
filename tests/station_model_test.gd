@@ -213,3 +213,12 @@ func _test_canonical_desktop_metric_dimensions() -> void:
 	var quad_express := RailwayDimensionsScript.get_platform_strips("quad-express", 3.05, 3.81)
 	assert(quad_express.size() == 3, "Quad express layout should have outer sides and a central island")
 	assert(is_equal_approx(float(quad_express[1]["edge1"]), -4.0) and is_equal_approx(float(quad_express[1]["edge2"]), 4.0), "Quad express center island should use express island width")
+
+	var quad_local_outer := RailwayDimensionsScript.get_platform_strips("quad-local-outer", 3.05, 3.81)
+	assert(quad_local_outer.size() == 1, "Quad local-outer layout should have one centered express-island strip")
+	assert(is_equal_approx(float(quad_local_outer[0]["edge1"]), -4.0) and is_equal_approx(float(quad_local_outer[0]["edge2"]), 4.0), "Quad local-outer strip should use the express-island width")
+	var quad_center_width := RailwayDimensionsScript.get_track_base_width("quad", 3.05, 3.81, 1.0, "quad-local-center")
+	assert(is_equal_approx(quad_center_width, 34.99), "Track base width should use the larger track envelope with clearance")
+	var quad_express_width := RailwayDimensionsScript.get_track_base_width("quad", 3.05, 3.81, 1.0, "quad-express")
+	assert(is_equal_approx(quad_express_width, 42.99), "Quad-express base width should include outer side platform envelope and clearance")
+	assert(is_equal_approx(RailwayDimensionsScript.get_lane_counting_width("parallel", 3.81, 1.0), 12.49), "Lane-counting width should preserve two-lane minimum width")
