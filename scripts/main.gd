@@ -40,6 +40,7 @@ var parallel_curve_segments: Array[Dictionary] = []
 var pending_track_start := -1
 var pending_track_start_node := -1
 var pending_track_start_position := Vector2.ZERO
+var pending_parallel_start_position := Vector2.ZERO
 var pending_parallel_start_valid := false
 var pending_curve_start := -1
 var pending_curve_control := Vector2.ZERO
