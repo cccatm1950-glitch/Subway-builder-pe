@@ -57,8 +57,9 @@ static func get_platform_strips(layout: String, train_width_metres: float, paral
 	var express_island_width := maxf(float(widths.get("expressIsland", EXPRESS_ISLAND_PLATFORM_WIDTH_M)), 0.0)
 	var clearance := train_half_width_with_platform_gap(train_width_metres)
 	var half_track := TRACK_WIDTH_M * 0.5
-	var parallel_outer := half_track + parallel_edge_spacing_metres * 0.5
-	var quad_outer := parallel_outer + TRACK_WIDTH_M + parallel_edge_spacing_metres
+	var parallel_offset := half_track + parallel_edge_spacing_metres * 0.5
+	var quad_offsets := get_quad_track_offsets(layout, train_width_metres, parallel_edge_spacing_metres, widths)
+	var quad_outer := float(quad_offsets["outer"])
 	var strips: Array[Dictionary] = []
 	match layout:
 		"side-left":
@@ -71,7 +72,7 @@ static func get_platform_strips(layout: String, train_width_metres: float, paral
 		"island":
 			strips.append({"edge1": -island_width * 0.5, "edge2": island_width * 0.5})
 		"side-platforms":
-			var offset := parallel_outer + clearance
+			var offset := get_parallel_track_offset(layout, train_width_metres, parallel_edge_spacing_metres, widths) + clearance
 			strips.append({"edge1": -offset - side_width, "edge2": -offset})
 			strips.append({"edge1": offset, "edge2": offset + side_width})
 		"quad-local", "quad-classic":
@@ -81,21 +82,74 @@ static func get_platform_strips(layout: String, train_width_metres: float, paral
 		"quad-local-outer":
 			strips.append({"edge1": -express_island_width * 0.5, "edge2": express_island_width * 0.5})
 		"quad-local-center":
-			var inner := parallel_outer
-			var outer := inner + train_width_metres + 2.0 * PLATFORM_TRAIN_GAP + express_island_width
-			var platform_center := (inner + outer) * 0.5
+			var platform_center := (float(quad_offsets["inner"]) + quad_outer) * 0.5
 			strips.append({"edge1": -platform_center - express_island_width * 0.5, "edge2": -platform_center + express_island_width * 0.5})
 			strips.append({"edge1": platform_center - express_island_width * 0.5, "edge2": platform_center + express_island_width * 0.5})
 		"quad-express":
-			var inner := express_island_width * 0.5 + clearance
-			var outer := inner + TRACK_WIDTH_M + parallel_edge_spacing_metres
-			var offset := outer + clearance
+			var offset := quad_outer + clearance
 			strips.append({"edge1": -offset - side_width, "edge2": -offset})
 			strips.append({"edge1": -express_island_width * 0.5, "edge2": express_island_width * 0.5})
 			strips.append({"edge1": offset, "edge2": offset + side_width})
 		_:
 			return strips
 	return strips
+
+
+static func get_parallel_track_offset(layout: String, train_width_metres: float, parallel_edge_spacing_metres: float, widths: Dictionary = {}) -> float:
+	if layout == "side-platforms":
+		var side_width := maxf(float(widths.get("side", SIDE_PLATFORM_WIDTH_M)), 0.0)
+		return side_width * 0.5 + train_half_width_with_platform_gap(train_width_metres)
+	return TRACK_WIDTH_M * 0.5 + parallel_edge_spacing_metres * 0.5
+
+
+static func get_quad_track_offsets(layout: String, train_width_metres: float, parallel_edge_spacing_metres: float, widths: Dictionary = {}) -> Dictionary:
+	var inner := TRACK_WIDTH_M * 0.5 + parallel_edge_spacing_metres * 0.5
+	var express_width := maxf(float(widths.get("expressIsland", EXPRESS_ISLAND_PLATFORM_WIDTH_M)), 0.0)
+	var clearance := train_half_width_with_platform_gap(train_width_metres)
+	var outer := inner + TRACK_WIDTH_M + parallel_edge_spacing_metres
+	match layout:
+		"quad-express", "quad-local-outer":
+			inner = express_width * 0.5 + clearance
+			outer = inner + TRACK_WIDTH_M + parallel_edge_spacing_metres
+		"quad-local-center":
+			outer = inner + train_width_metres + 2.0 * PLATFORM_TRAIN_GAP_M + express_width
+	return {"inner": inner, "outer": outer}
+
+
+static func get_lane_counting_width(lanes_type: String, parallel_edge_spacing_metres: float, track_clearance_metres: float) -> float:
+	var lane_count := 1
+	match lanes_type:
+		"parallel":
+			lane_count = 2
+		"quad":
+			lane_count = 4
+		"single":
+			lane_count = 1
+		_:
+			return 0.0
+	var width := 0.0
+	for index in range(lane_count):
+		width += TRACK_WIDTH_M
+		if index == 0 or index == lane_count - 1:
+			width += track_clearance_metres
+		width += parallel_edge_spacing_metres
+	return width
+
+
+static func get_track_base_width(lanes_type: String, train_width_metres: float, parallel_edge_spacing_metres: float, track_clearance_metres: float, layout: String = "", widths: Dictionary = {}) -> float:
+	var minimum_width := get_lane_counting_width(lanes_type, parallel_edge_spacing_metres, track_clearance_metres)
+	if layout.is_empty():
+		return minimum_width
+	var track_half_extent := TRACK_WIDTH_M * 0.5
+	if lanes_type == "parallel":
+		track_half_extent = get_parallel_track_offset(layout, train_width_metres, parallel_edge_spacing_metres, widths) + TRACK_WIDTH_M * 0.5
+	elif lanes_type == "quad":
+		track_half_extent = float(get_quad_track_offsets(layout, train_width_metres, parallel_edge_spacing_metres, widths)["outer"]) + TRACK_WIDTH_M * 0.5
+	var strips := get_platform_strips(layout, train_width_metres, parallel_edge_spacing_metres, widths)
+	var platform_half_extent := platform_strip_half_extent(strips)
+	var track_envelope := track_half_extent + parallel_edge_spacing_metres * 0.5 + track_clearance_metres
+	var platform_envelope := platform_half_extent + track_clearance_metres
+	return maxf(2.0 * maxf(track_envelope, platform_envelope), minimum_width)
 
 
 static func platform_strip_half_extent(strips: Array[Dictionary]) -> float:
