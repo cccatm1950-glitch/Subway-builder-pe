@@ -72,7 +72,7 @@ static func get_platform_strips(layout: String, train_width_metres: float, paral
 		"island":
 			strips.append({"edge1": -island_width * 0.5, "edge2": island_width * 0.5})
 		"side-platforms":
-			var offset := get_parallel_track_offset(layout, train_width_metres, parallel_edge_spacing_metres, widths) + clearance
+			var offset := parallel_offset + clearance
 			strips.append({"edge1": -offset - side_width, "edge2": -offset})
 			strips.append({"edge1": offset, "edge2": offset + side_width})
 		"quad-local", "quad-classic":
@@ -86,7 +86,8 @@ static func get_platform_strips(layout: String, train_width_metres: float, paral
 			strips.append({"edge1": -platform_center - express_island_width * 0.5, "edge2": -platform_center + express_island_width * 0.5})
 			strips.append({"edge1": platform_center - express_island_width * 0.5, "edge2": platform_center + express_island_width * 0.5})
 		"quad-express":
-			var offset := quad_outer + clearance
+			var express_layout_outer := parallel_offset + TRACK_WIDTH_M + parallel_edge_spacing_metres
+			var offset := express_layout_outer + clearance
 			strips.append({"edge1": -offset - side_width, "edge2": -offset})
 			strips.append({"edge1": -express_island_width * 0.5, "edge2": express_island_width * 0.5})
 			strips.append({"edge1": offset, "edge2": offset + side_width})
