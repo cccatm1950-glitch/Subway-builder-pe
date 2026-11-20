@@ -128,3 +128,20 @@ For each phase:
 ## Current known CI checkpoint
 
 PR #11's latest known Android debug workflow completed successfully and explicitly ran the free-placement track-node tests, in addition to graph topology, geometry, station-model tests, and Android export. This is an automated checkpoint only; no physical-device test is implied.
+
+
+## Additional audit pass — repository and live-reference limits
+
+A second inspection pass read the complete `scripts/main.gd` (1,574 lines), `scripts/hud.gd`, `scripts/map_grid.gd`, the Android workflow, the free-placement test, and the station-model test.
+
+Confirmed details:
+- The main scene's map backdrop is currently a procedural 64-world-unit grid with major lines every eight cells; the inspected `map_grid.gd` does not implement a geographic basemap or terrain layer.
+- The inspected HUD constructs station, track, parallel, parallel-curve, curve, zoom-in, and zoom-out controls. Its input-status label is updated with low-level touch/mouse diagnostic states.
+- The complete inspected main script is focused on camera/touch handling, construction placement, track/lane graph bookkeeping, curve editing, station/corridor geometry, and drawing. The searched terms for trains, passengers, line scheduling, simulation, economy, demand, terrain levels, tunnels, bridges, flyovers, buses, and ferries did not identify corresponding gameplay systems in that script.
+- The Android workflow on the default branch runs graph, geometry, and station-model tests and exports an Android debug APK. The free-placement test was added on the PR #11 branch and passed in that PR's latest checked workflow; it is not yet present in the inspected default-branch workflow.
+
+Audit limitation:
+- The connected repository interface did not provide a complete repository file-tree listing in this pass, and GitHub code search returned no indexed matches. Therefore the above findings describe the inspected files only; they do **not** prove that other uninspected files or branches lack those systems.
+- The public Trainsworld playable page opened, but the browser text extraction returned no readable application content. The official documentation was readable and is the basis for the documented feature inventory above. Interactive UI details, exact tool gestures, visual styling, and live simulation behavior remain to be verified with an actual playable session or user-provided screen recording.
+
+The next audit task is to obtain a complete repository inventory and inspect any additional gameplay scripts before marking lines/scheduling, trains/simulation, or economy as missing.
