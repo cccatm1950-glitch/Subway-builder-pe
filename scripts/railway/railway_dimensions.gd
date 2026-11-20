@@ -74,10 +74,12 @@ static func get_platform_strips(layout: String, train_width_metres: float, paral
 			var offset := parallel_outer + clearance
 			strips.append({"edge1": -offset - side_width, "edge2": -offset})
 			strips.append({"edge1": offset, "edge2": offset + side_width})
-		"quad-local", "quad-classic", "quad-local-outer":
+		"quad-local", "quad-classic":
 			var offset := quad_outer + clearance
 			strips.append({"edge1": -offset - side_width, "edge2": -offset})
 			strips.append({"edge1": offset, "edge2": offset + side_width})
+		"quad-local-outer":
+			strips.append({"edge1": -express_island_width * 0.5, "edge2": express_island_width * 0.5})
 		"quad-local-center":
 			var inner := parallel_outer
 			var outer := inner + train_width_metres + 2.0 * PLATFORM_TRAIN_GAP + express_island_width
