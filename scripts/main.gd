@@ -231,21 +231,12 @@ func _handle_map_tap(_screen_position: Vector2) -> void:
 			hud.set_mode(build_mode, "TRACK CONNECTED  ·  PLACE ANOTHER START NODE")
 
 func _handle_curve_tap(screen_position: Vector2) -> void:
-	var lane_node_id := _find_lane_node_near_screen(screen_position)
-	var station_index := -1
+	# Curve endpoints are free-standing track nodes; station centers are
+	# not required or implicitly used as connection anchors.
 	var endpoint := get_snapped_world_position(screen_position)
-	if lane_node_id >= 0:
-		var node := _get_lane_node(lane_node_id)
-		station_index = int(node.get("station_index", -1))
-		endpoint = Vector2(node.get("position", endpoint))
-	else:
-		station_index = _find_station_near_screen(screen_position)
-		if station_index >= 0:
-			endpoint = stations[station_index]
+	var lane_node_id := _get_or_create_lane_node(endpoint, -1, 0, -1)
+	var station_index := -1
 	if curve_stage == 0:
-		if lane_node_id < 0 and station_index < 0:
-			hud.set_mode(build_mode, "SELECT A START STATION OR TRACK NODE")
-			return
 		pending_curve_start = station_index
 		pending_curve_start_node = lane_node_id
 		curve_stage = 1
@@ -259,7 +250,7 @@ func _handle_curve_tap(screen_position: Vector2) -> void:
 		hud.set_mode(build_mode, "DRAG THE CURVE HANDLE  ·  TAP END NODE")
 		queue_redraw()
 		return
-	if (lane_node_id < 0 and station_index < 0) or (lane_node_id == pending_curve_start_node and pending_curve_start_node >= 0) or (lane_node_id < 0 and pending_curve_start_node < 0 and station_index == pending_curve_start):
+	if lane_node_id == pending_curve_start_node:
 		hud.set_mode(build_mode, "TAP A DIFFERENT END STATION OR TRACK NODE")
 		return
 	var start_fallback: Vector2 = stations[pending_curve_start] if pending_curve_start >= 0 and pending_curve_start < stations.size() else Vector2.ZERO
@@ -286,21 +277,12 @@ func _handle_curve_tap(screen_position: Vector2) -> void:
 	hud.set_mode(build_mode, "CURVE CONNECTED  ·  SELECT ANOTHER START")
 
 func _handle_parallel_curve_tap(screen_position: Vector2) -> void:
-	var lane_node_id := _find_lane_node_near_screen(screen_position)
-	var station_index := -1
+	# Curve endpoints are free-standing track nodes; station centers are
+	# not required or implicitly used as connection anchors.
 	var endpoint := get_snapped_world_position(screen_position)
-	if lane_node_id >= 0:
-		var node := _get_lane_node(lane_node_id)
-		station_index = int(node.get("station_index", -1))
-		endpoint = Vector2(node.get("position", endpoint))
-	else:
-		station_index = _find_station_near_screen(screen_position)
-		if station_index >= 0:
-			endpoint = stations[station_index]
+	var lane_node_id := _get_or_create_lane_node(endpoint, -1, 0, -1)
+	var station_index := -1
 	if curve_stage == 0:
-		if lane_node_id < 0 and station_index < 0:
-			hud.set_mode(build_mode, "SELECT A START STATION OR TRACK NODE")
-			return
 		pending_curve_start = station_index
 		pending_curve_start_node = lane_node_id
 		curve_stage = 1
@@ -314,7 +296,7 @@ func _handle_parallel_curve_tap(screen_position: Vector2) -> void:
 		hud.set_mode(build_mode, "DRAG SHARED HANDLE  ·  TAP END NODE")
 		queue_redraw()
 		return
-	if (lane_node_id < 0 and station_index < 0) or (lane_node_id == pending_curve_start_node and pending_curve_start_node >= 0) or (lane_node_id < 0 and pending_curve_start_node < 0 and station_index == pending_curve_start):
+	if lane_node_id == pending_curve_start_node:
 		hud.set_mode(build_mode, "TAP A DIFFERENT END STATION OR TRACK NODE")
 		return
 	var start_fallback: Vector2 = stations[pending_curve_start] if pending_curve_start >= 0 and pending_curve_start < stations.size() else Vector2.ZERO
