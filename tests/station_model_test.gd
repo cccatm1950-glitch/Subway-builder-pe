@@ -203,3 +203,13 @@ func _test_canonical_desktop_metric_dimensions() -> void:
 	assert(parallel_sides.size() == 2, "Parallel side-platform layout should produce two strips")
 	assert(is_equal_approx(RailwayDimensionsScript.platform_strip_half_extent(parallel_sides), 12.2475), "Parallel side-platform extent should include lane envelope, train clearance, and platform width")
 	assert(RailwayDimensionsScript.get_platform_strips("unknown-layout", 3.05, 3.81).is_empty(), "Unknown layouts must not silently receive a guessed platform arrangement")
+
+	var quad_outer := RailwayDimensionsScript.get_platform_strips("quad-classic", 3.05, 3.81)
+	assert(quad_outer.size() == 2, "Classic quad layout should have two outside platform strips")
+	assert(is_equal_approx(RailwayDimensionsScript.platform_strip_half_extent(quad_outer), 17.4925), "Classic quad platform envelope should use the outer track offset")
+	var quad_center := RailwayDimensionsScript.get_platform_strips("quad-local-center", 3.05, 3.81)
+	assert(quad_center.size() == 2, "Quad local-center layout should place two intermediate island strips")
+	assert(is_equal_approx(float(quad_center[0]["edge2"]), -float(quad_center[1]["edge1"])), "Intermediate island strips should be symmetric")
+	var quad_express := RailwayDimensionsScript.get_platform_strips("quad-express", 3.05, 3.81)
+	assert(quad_express.size() == 3, "Quad express layout should have outer sides and a central island")
+	assert(is_equal_approx(float(quad_express[1]["edge1"]), -4.0) and is_equal_approx(float(quad_express[1]["edge2"]), 4.0), "Quad express center island should use express island width")
