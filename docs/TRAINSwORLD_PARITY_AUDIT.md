@@ -145,3 +145,21 @@ Audit limitation:
 - The public Trainsworld playable page opened, but the browser text extraction returned no readable application content. The official documentation was readable and is the basis for the documented feature inventory above. Interactive UI details, exact tool gestures, visual styling, and live simulation behavior remain to be verified with an actual playable session or user-provided screen recording.
 
 The next audit task is to obtain a complete repository inventory and inspect any additional gameplay scripts before marking lines/scheduling, trains/simulation, or economy as missing.
+
+
+## Additional source inspection — confirmed architecture
+
+Inspected in this pass: `scenes/main.tscn`, `scripts/hud.gd`, `scripts/map_grid.gd`, `scripts/railway/track_geometry.gd`, and `scripts/railway/junction_engine.gd`.
+
+- The main scene currently instantiates only `scripts/main.gd`, `scripts/map_grid.gd`, and `scripts/hud.gd`, plus a Camera2D and CanvasLayer.
+- The HUD is a compact prototype layout with text buttons for station, track, parallel, parallel curve, curve, and zoom. It draws a centered crosshair. The inspected HUD source contains no line, train, passenger, schedule, finance, or simulation panels.
+- `map_grid.gd` draws a fixed world grid; there are no geographic tiles or terrain features in that script.
+- `track_geometry.gd` is a pure geometry utility: polyline sampling/offsetting, parallel pair generation, track envelopes, and station corridor contour helpers.
+- `junction_engine.gd` currently selects a branch lane and builds a cubic turnout path. It does not model signal blocks, conflict reservations, grade separation, train movement, or junction capacity.
+- The inspected project configuration is a 720x1280 portrait Godot project using canvas-items stretch and the GL Compatibility renderer.
+
+These findings strengthen the conclusion that the **currently inspected playable scene** is a construction-focused prototype, not yet a Trainsworld-equivalent transport simulation. However, because a complete recursive repository tree could not be obtained through the connected GitHub interface and code search returned no indexed results, this is still not proof that there are no additional unreferenced scripts elsewhere in the repository. Do not label whole subsystems definitively absent until a complete file inventory or project archive can be inspected.
+
+## Audit decision
+
+The next engineering work should remain **audit and architecture planning**, not implementation of passenger/economy systems yet. Before starting those features, establish the complete project file inventory and decide whether the current construction prototype should be extended in place or separated into explicit simulation modules. Preserve the existing graph and geometry APIs unless regression tests show they need to change.
