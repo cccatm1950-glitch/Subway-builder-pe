@@ -222,3 +222,4 @@ func _test_canonical_desktop_metric_dimensions() -> void:
 	var quad_express_width := RailwayDimensionsScript.get_track_base_width("quad", 3.05, 3.81, 1.0, "quad-express")
 	assert(is_equal_approx(quad_express_width, 36.985), "Quad-express base width should include outer side platform envelope and clearance")
 	assert(is_equal_approx(RailwayDimensionsScript.get_lane_counting_width("parallel", 3.81, 1.0), 12.49), "Lane-counting width should preserve two-lane minimum width")
+	assert(is_equal_approx(RailwayDimensionsScript.get_lane_counting_width("single", 3.81, 1.0), 7.245), "Single-lane width should include clearance at both outer edges")
