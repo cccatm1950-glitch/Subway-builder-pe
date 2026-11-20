@@ -74,26 +74,23 @@ static func get_platform_strips(layout: String, train_width_metres: float, paral
 			var offset := parallel_outer + clearance
 			strips.append({"edge1": -offset - side_width, "edge2": -offset})
 			strips.append({"edge1": offset, "edge2": offset + side_width})
-		"quad-local":
-			var inner := express_island_width * 0.5 + clearance
-			var outer := inner + TRACK_WIDTH_M + parallel_edge_spacing_metres
-			strips.append({"edge1": -outer - side_width, "edge2": -outer})
-			strips.append({"edge1": outer, "edge2": outer + side_width})
-		"quad-local-center":
-			var inner := parallel_outer
-			var outer := inner + train_width_metres + 2.0 * PLATFORM_TRAIN_GAP_M + express_island_width
-			strips.append({"edge1": -outer - side_width, "edge2": -outer})
-			strips.append({"edge1": outer, "edge2": outer + side_width})
-		"quad-express":
+		"quad-local", "quad-classic", "quad-local-outer":
 			var offset := quad_outer + clearance
 			strips.append({"edge1": -offset - side_width, "edge2": -offset})
 			strips.append({"edge1": offset, "edge2": offset + side_width})
-			strips.append({"edge1": -express_island_width * 0.5, "edge2": express_island_width * 0.5})
-		"quad-classic", "quad-local-outer":
+		"quad-local-center":
 			var inner := parallel_outer
+			var outer := inner + train_width_metres + 2.0 * PLATFORM_TRAIN_GAP + express_island_width
+			var platform_center := (inner + outer) * 0.5
+			strips.append({"edge1": -platform_center - express_island_width * 0.5, "edge2": -platform_center + express_island_width * 0.5})
+			strips.append({"edge1": platform_center - express_island_width * 0.5, "edge2": platform_center + express_island_width * 0.5})
+		"quad-express":
+			var inner := express_island_width * 0.5 + clearance
 			var outer := inner + TRACK_WIDTH_M + parallel_edge_spacing_metres
-			strips.append({"edge1": -outer - side_width, "edge2": -outer})
-			strips.append({"edge1": outer, "edge2": outer + side_width})
+			var offset := outer + clearance
+			strips.append({"edge1": -offset - side_width, "edge2": -offset})
+			strips.append({"edge1": -express_island_width * 0.5, "edge2": express_island_width * 0.5})
+			strips.append({"edge1": offset, "edge2": offset + side_width})
 		_:
 			return strips
 	return strips
