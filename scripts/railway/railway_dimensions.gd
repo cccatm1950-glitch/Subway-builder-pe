@@ -131,9 +131,11 @@ static func get_lane_counting_width(lanes_type: String, parallel_edge_spacing_me
 	var width := 0.0
 	for index in range(lane_count):
 		width += TRACK_WIDTH_M
-		if index == 0 or index == lane_count - 1:
+		if index == 0:
 			width += track_clearance_metres
 		width += parallel_edge_spacing_metres
+		if index == lane_count - 1:
+			width += track_clearance_metres
 	return width
 
 
