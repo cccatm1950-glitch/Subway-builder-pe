@@ -40,6 +40,7 @@ var parallel_curve_segments: Array[Dictionary] = []
 var pending_track_start := -1
 var pending_track_start_node := -1
 var pending_track_start_position := Vector2.ZERO
+var pending_parallel_start_valid := false
 var pending_curve_start := -1
 var pending_curve_control := Vector2.ZERO
 var curve_stage := 0
@@ -207,9 +208,27 @@ func _handle_map_tap(_screen_position: Vector2) -> void:
 			station_records.append(StationModelScript.create_record(station_id, station_position))
 			queue_redraw()
 		_update_coordinate_readout()
-	elif build_mode == "track" or build_mode == "parallel":
-		# Free placement: each tap creates or reuses a track node at the
-		# snapped crosshair position. Stations are never required anchors.
+	elif build_mode == "parallel":
+		# Parallel placement is defined by a centerline gesture, but that
+		# centerline is not a graph node. Only the two offset lane endpoints
+		# created by _add_free_parallel_track_pair belong in the track graph.
+		var target_position := get_snapped_world_position(crosshair_screen)
+		if not pending_parallel_start_valid:
+			pending_parallel_start_position = target_position
+			pending_parallel_start_valid = true
+			pending_track_start_position = target_position
+			hud.set_mode(build_mode, "START SELECTED  ·  PLACE THE OTHER END")
+		elif target_position.distance_to(pending_parallel_start_position) <= 0.5:
+			hud.set_mode(build_mode, "SAME POSITION  ·  PLACE A DIFFERENT END")
+		else:
+			_add_free_parallel_track_pair(pending_parallel_start_position, target_position)
+			pending_parallel_start_valid = false
+			pending_parallel_start_position = Vector2.ZERO
+			pending_track_start_position = Vector2.ZERO
+			queue_redraw()
+			hud.set_mode(build_mode, "PARALLEL TRACKS PLACED  ·  PLACE ANOTHER START")
+	elif build_mode == "track":
+		# Single-track placement continues to use one explicit node per endpoint.
 		var target_position := get_snapped_world_position(crosshair_screen)
 		var lane_node_id := _get_or_create_lane_node(target_position, -1, 0, -1)
 		if pending_track_start_node < 0:
@@ -220,10 +239,7 @@ func _handle_map_tap(_screen_position: Vector2) -> void:
 		elif lane_node_id == pending_track_start_node:
 			hud.set_mode(build_mode, "SAME NODE  ·  PLACE A DIFFERENT NODE")
 		else:
-			if build_mode == "parallel":
-				_add_free_parallel_track_pair(pending_track_start_position, target_position)
-			else:
-				_add_track_edge_from_anchors(-1, -1, pending_track_start_position, target_position, pending_track_start_node, lane_node_id)
+			_add_track_edge_from_anchors(-1, -1, pending_track_start_position, target_position, pending_track_start_node, lane_node_id)
 			pending_track_start = -1
 			pending_track_start_node = -1
 			pending_track_start_position = Vector2.ZERO
@@ -1304,6 +1320,7 @@ func _find_station_near_screen(screen_position: Vector2) -> int:
 func _select_station_mode() -> void:
 	pending_track_start_node = -1
 	pending_track_start_position = Vector2.ZERO
+	pending_parallel_start_valid = false
 	build_mode = "" if build_mode == "station" else "station"
 	pending_track_start = -1
 	pending_curve_start = -1
@@ -1313,6 +1330,7 @@ func _select_station_mode() -> void:
 func _select_track_mode() -> void:
 	pending_track_start_node = -1
 	pending_track_start_position = Vector2.ZERO
+	pending_parallel_start_valid = false
 	build_mode = "" if build_mode == "track" else "track"
 	pending_track_start = -1
 	pending_curve_start = -1
@@ -1322,6 +1340,7 @@ func _select_track_mode() -> void:
 func _select_parallel_mode() -> void:
 	pending_track_start_node = -1
 	pending_track_start_position = Vector2.ZERO
+	pending_parallel_start_valid = false
 	build_mode = "" if build_mode == "parallel" else "parallel"
 	pending_track_start = -1
 	pending_curve_start = -1
@@ -1331,6 +1350,7 @@ func _select_parallel_mode() -> void:
 func _select_parallel_curve_mode() -> void:
 	pending_track_start_node = -1
 	pending_track_start_position = Vector2.ZERO
+	pending_parallel_start_valid = false
 	build_mode = "" if build_mode == "parallel_curve" else "parallel_curve"
 	pending_track_start = -1
 	pending_curve_start = -1
@@ -1348,7 +1368,7 @@ func _draw() -> void:
 	if build_mode == "curve":
 		for index in range(curve_segments.size()):
 			_draw_completed_curve_handle(curve_segments[index], index == editing_curve_index)
-	if (build_mode == "track" or build_mode == "parallel") and (pending_track_start >= 0 or pending_track_start_node >= 0):
+	if (build_mode == "track" or build_mode == "parallel") and (pending_track_start >= 0 or pending_track_start_node >= 0 or pending_parallel_start_valid):
 		_draw_track_preview()
 	if build_mode == "curve" and (pending_curve_start >= 0 or pending_curve_start_node >= 0):
 		_draw_curve_preview()
